@@ -1,0 +1,41 @@
+{
+  "name": "cloudfrontize-lambda-at-edge",
+  "description": "Simulate your Lambda@Edge functions locally for on a CloudFront-like static server.",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "main": "dist/cli.js",
+  "bin": {
+    "cloudfrontize": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "prepublishOnly": "npm run build",
+    "test:local": "node ./bin/cli.js ./wwwsample/dist -l 5174",
+    "test:dist": "node ./dist/cli.js ./wwwsample/dist -l 5174"
+  },
+  "dependencies": {
+    "serve-handler": "^6.1.6",
+    "compression": "^1.7.4",
+    "commander": "^11.0.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.1"
+  },
+  "keywords": [
+    "cloudfront",
+    "aws",
+    "lambda-at-edge",
+    "compression",
+    "brotli",
+    "static-server"
+  ],
+  "author": "Felipe Carrillo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/felipecarrillo/cloudfrontize-lambda-at-edge.git"
+  }
+}
