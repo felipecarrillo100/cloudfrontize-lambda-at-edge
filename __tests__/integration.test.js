@@ -14,7 +14,8 @@ let server;
 function fetchURL(url, headers = {}) {
     headers['Connection'] = 'close'; // Prevent keep-alive from holding the server open!
     return new Promise((resolve, reject) => {
-        http.get(url, { headers }, (res) => {
+        // Specify agent: false to force Node.js to shut down the connection pool immediately!
+        http.get(url, { headers, agent: false }, (res) => {
             let data = [];
             res.on('data', chunk => data.push(chunk));
             res.on('end', () => {
@@ -29,6 +30,11 @@ function fetchURL(url, headers = {}) {
 }
 
 beforeAll(async () => {
+    // 0. Mock fs.watch to prevent Jest from hanging on persistent file watchers
+    jest.spyOn(fs, 'watch').mockImplementation(() => {
+        return { close: () => { } };
+    });
+
     // 1. Create temporary directory
     if (!fs.existsSync(TMP_DIR)) {
         fs.mkdirSync(TMP_DIR);
@@ -56,7 +62,7 @@ beforeAll(async () => {
     fs.writeFileSync(path.join(TMP_DIR, 'large.js.br'), brData);
     fs.writeFileSync(path.join(TMP_DIR, 'large.js.gz'), gzData);
 
-    // 5. Start the server on port 9091 using your existing servePrecompressed sample!
+    // 5. Start the server on port 9091
     const edgeRunner = new EdgeRunner(path.resolve(__dirname, '../samples/basic/servePrecompressed.js'));
     server = startServer({
         directory: TMP_DIR,
@@ -66,15 +72,9 @@ beforeAll(async () => {
     });
 });
 
-afterAll(() => {
-    // 1. Teardown server
-    if (server) {
-        server.close();
-    }
-    // 2. Teardown temporary files
-    if (fs.existsSync(TMP_DIR)) {
-        fs.rmSync(TMP_DIR, { recursive: true, force: true });
-    }
+afterAll(async () => {
+    // Restore all mocks
+    jest.restoreAllMocks();
 });
 
 describe('End-to-End EdgeRunner + CloudFrontize Integration', () => {
@@ -82,38 +82,46 @@ describe('End-to-End EdgeRunner + CloudFrontize Integration', () => {
     test('1. File < 10MB on-the-fly compression to gzip', async () => {
         const res = await fetchURL('http://localhost:9091/small.json', { 'accept-encoding': 'gzip' });
         expect(res.status).toBe(200);
-        // The middleware automatically compresses it!
         expect(res.headers['content-encoding']).toBe('gzip');
     });
 
     test('2. Missing .br triggers silent fallback to original file', async () => {
-        // large-missing.js does NOT have a .br counterpart
         const res = await fetchURL('http://localhost:9091/large-missing.js', { 'accept-encoding': 'br' });
         expect(res.status).toBe(200);
-
-        // The EdgeRunner mutated the URI to large-missing.js.br, but index.js verified it was missing
-        // and safely fell back to the original 11MB file uncompressed.
         expect(res.headers['content-encoding']).toBeUndefined();
         expect(res.body.length).toBeGreaterThan(10 * 1024 * 1024);
     });
 
     test('3. Successful Lambda rewrite to Pre-Compressed .br asset (>10MB limit)', async () => {
-        // large.js DOES have a .br counterpart we created
         const res = await fetchURL('http://localhost:9091/large.js', { 'accept-encoding': 'br' });
         expect(res.status).toBe(200);
-
-        // EdgeRunner shifted it to .br, index.js found it, and served it successfully!
         expect(res.headers['content-encoding']).toBe('br');
-        // The body should be significantly smaller than 11MB now!
         expect(res.body.length).toBeLessThan(1024 * 1024);
     });
 
     test('4. Successful Lambda rewrite to Pre-Compressed .gz asset (>10MB limit) if br absent from accept', async () => {
-        // Provided gzip instead of br in the Accept-Encoding header
         const res = await fetchURL('http://localhost:9091/large.js', { 'accept-encoding': 'gzip' });
         expect(res.status).toBe(200);
-
-        // The sample Lambda checks for br first, then gzip. It should rewrite to .gz
         expect(res.headers['content-encoding']).toBe('gzip');
     });
+
+    test('5. Server shuts down gracefully and cleans up temporary files', async () => {
+        let closed = false;
+        if (server) {
+            // Explicitly wait for the server to stop accepting connections
+            await server.closeGracefully();
+            closed = true;
+        }
+
+        // Small delay to ensure Windows releases file locks after server closure
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Attempt cleanup
+        if (fs.existsSync(TMP_DIR)) {
+            fs.rmSync(TMP_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        }
+
+        expect(closed).toBe(true);
+        expect(fs.existsSync(TMP_DIR)).toBe(false);
+    }, 10000); // Higher timeout for the cleanup test
 });

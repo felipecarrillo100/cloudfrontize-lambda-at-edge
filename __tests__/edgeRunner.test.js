@@ -14,9 +14,18 @@ afterAll(() => {
 });
 
 describe('EdgeRunner 100% Emulation Fidelity', () => {
+    let runners = [];
+
+    afterEach(() => {
+        for (const r of runners) {
+            r.close();
+        }
+        runners = [];
+    });
 
     test('1. Resolves async handlers natively (Promise support)', async () => {
         const runner = new EdgeRunner('./samples/edgecases/asyncHandler.js');
+        runners.push(runner);
         const res = await runner.runRequestHook({ headers: {}, url: '/original.html' });
 
         expect(res).toBeDefined();
@@ -26,6 +35,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
     test('2. Injects mocked AWS context object to prevent crashes', async () => {
         const runner = new EdgeRunner('./samples/edgecases/contextLogger.js');
+        runners.push(runner);
         const res = await runner.runRequestHook({ headers: {}, url: '/' });
 
         // If the context wasn't passed, the handler throws an error and returns null
@@ -35,6 +45,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
     test('3. Natively extracts and splits query strings', async () => {
         const runner = new EdgeRunner('./samples/edgecases/queryStringRewriter.js');
+        runners.push(runner);
         const res = await runner.runRequestHook({ headers: {}, url: '/page?utm_source=twitter&other=keep' });
 
         expect(res).toBeDefined();
@@ -44,6 +55,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
     test('4. Emits warnings when mutating AWS blacklisted headers', async () => {
         const runner = new EdgeRunner('./samples/edgecases/blacklistedHeaderMutator.js');
+        runners.push(runner);
 
         await runner.runResponseHook({ headers: {}, url: '/' }, { status: 200, headers: {} });
 
@@ -54,6 +66,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
     test('5. Multi-hook directories execute sequentially without collision', async () => {
         const runner = new EdgeRunner('./samples/advanced/multi-hook-app/');
+        runners.push(runner);
 
         // viewer-request test
         const reqRes = await runner.runRequestHook({ headers: {}, url: '/test' });

@@ -84,7 +84,7 @@ class EdgeRunner {
 
     _watch() {
         try {
-            fs.watch(this.edgePath, { persistent: false }, (eventType, filename) => {
+            this.watcher = fs.watch(this.edgePath, { persistent: false }, (eventType, filename) => {
                 if (eventType === 'change' && filename && filename.endsWith('.js')) {
                     console.log(`🔄 [CloudFrontize] Edge module changed, reloading: ${filename || path.basename(this.edgePath)}`);
                     this._load();
@@ -96,6 +96,15 @@ class EdgeRunner {
             });
         } catch (err) {
             console.warn(`⚠️  [CloudFrontize] Could not watch edge path: ${err.message}`);
+        }
+    }
+
+    /**
+     * Gracefully close the EdgeRunner's open filesystem watchers.
+     */
+    close() {
+        if (this.watcher) {
+            this.watcher.close();
         }
     }
 
@@ -130,7 +139,7 @@ class EdgeRunner {
 
             try {
                 const result = handler(event, context, callback);
-                
+
                 // If the handler returned a Promise (e.g., an async function)
                 if (result && typeof result.then === 'function') {
                     result.then(

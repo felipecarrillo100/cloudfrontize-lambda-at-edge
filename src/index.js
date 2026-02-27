@@ -151,6 +151,30 @@ function startServer(options) {
         }
     });
 
+    const sockets = new Set();
+    server.on('connection', (socket) => {
+        sockets.add(socket);
+        socket.once('close', () => sockets.delete(socket));
+    });
+
+    /**
+     * Terminate the server gracefully. Destroys all open connection sockets 
+     * immediately instead of waiting for client timeouts.
+     */
+    server.closeGracefully = function () {
+        return new Promise(resolve => {
+            if (edgeRunner) {
+                edgeRunner.close();
+            }
+            for (const socket of sockets) {
+                socket.destroy();
+            }
+            server.close(() => {
+                resolve();
+            });
+        });
+    };
+
     return server.listen(options.port, () => {
         if (!options.noRequestLogging) {
             console.log(`\n☁️  Cloudfrontize running on http://localhost:${options.port}`);
