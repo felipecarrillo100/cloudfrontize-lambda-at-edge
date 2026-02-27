@@ -13,16 +13,18 @@
   "scripts": {
     "build": "node scripts/build.js",
     "prepublishOnly": "npm run build",
+    "test": "jest --forceExit",
     "test:local": "node ./bin/cli.js --edge samples/basic ./wwwsample/dist -l 5174",
     "test:dist": "node ./dist/cli.js --edge samples/basic ./wwwsample/dist -l 5174"
   },
   "dependencies": {
-    "serve-handler": "^6.1.6",
+    "commander": "^11.0.0",
     "compression": "^1.7.4",
-    "commander": "^11.0.0"
+    "serve-handler": "^6.1.6"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.1"
+    "@vercel/ncc": "^0.38.1",
+    "jest": "^30.2.0"
   },
   "keywords": [
     "cloudfront",

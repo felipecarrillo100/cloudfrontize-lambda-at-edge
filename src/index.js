@@ -151,7 +151,7 @@ function startServer(options) {
         }
     });
 
-    server.listen(options.port, () => {
+    return server.listen(options.port, () => {
         if (!options.noRequestLogging) {
             console.log(`\n☁️  Cloudfrontize running on http://localhost:${options.port}`);
             if (edgeRunner) {
