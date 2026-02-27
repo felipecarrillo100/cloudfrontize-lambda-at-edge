@@ -109,6 +109,7 @@ public
 .tern-port
 
 # Stores VS Code-specific settings
+.idea/
 .vscode/
 !.vscode/settings.json
 !.vscode/tasks.json
