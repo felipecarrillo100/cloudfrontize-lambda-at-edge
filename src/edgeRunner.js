@@ -104,19 +104,45 @@ class EdgeRunner {
      * Returns a Promise resolving to the modified request or response object.
      */
     _invoke(handler, eventRecord) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const event = { Records: [{ cf: eventRecord }] };
 
+            // AWS Lambda context mock
+            const context = {
+                functionName: 'cloudfrontize-local-function',
+                functionVersion: '$LATEST',
+                invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:cloudfrontize-local-function',
+                memoryLimitInMB: '128',
+                awsRequestId: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                logGroupName: '/aws/lambda/cloudfrontize-local-function',
+                logStreamName: `2026/02/27/[$LATEST]${Math.random().toString(36).substr(2, 9)}`,
+                callbackWaitsForEmptyEventLoop: true,
+                getRemainingTimeInMillis: () => 3000 // Dummy value
+            };
+
+            const callback = (err, result) => {
+                if (err) {
+                    console.error(`❌ [CloudFrontize] Edge handler callback error: ${err.message || err}`);
+                    return resolve(null); // Fail open — pass through
+                }
+                resolve(result);
+            };
+
             try {
-                handler(event, {}, (err, result) => {
-                    if (err) {
-                        console.error(`❌ [CloudFrontize] Edge handler error: ${err.message}`);
-                        return resolve(null); // Fail open — pass through
-                    }
-                    resolve(result);
-                });
+                const result = handler(event, context, callback);
+                
+                // If the handler returned a Promise (e.g., an async function)
+                if (result && typeof result.then === 'function') {
+                    result.then(
+                        asyncResult => resolve(asyncResult),
+                        asyncErr => {
+                            console.error(`❌ [CloudFrontize] Edge async handler error: ${asyncErr.message || asyncErr}`);
+                            resolve(null); // Fail open
+                        }
+                    );
+                }
             } catch (err) {
-                console.error(`❌ [CloudFrontize] Edge handler threw: ${err.message}`);
+                console.error(`❌ [CloudFrontize] Edge handler threw: ${err.message || err}`);
                 resolve(null); // Fail open
             }
         });
@@ -132,14 +158,31 @@ class EdgeRunner {
             cfHeaders[key.toLowerCase()] = [{ key, value: String(value) }];
         }
 
+        const [uri, querystring] = (req.url || '').split('?');
+
         return {
             request: {
                 method: req.method || 'GET',
-                uri: req.url,
-                querystring: '',
+                uri: uri || '/',
+                querystring: querystring || '',
                 headers: cfHeaders
             }
         };
+    }
+
+    /**
+     * Validate against AWS CloudFront's blacklisted headers.
+     * Emits a warning if a user attempts to mutate them.
+     */
+    _validateBlacklistedHeaders(headers, hookType) {
+        if (!headers) return;
+        const blacklisted = ['host', 'via', 'x-cache', 'x-forwarded-for'];
+        for (const key of Object.keys(headers)) {
+            const lowerKey = key.toLowerCase();
+            if (blacklisted.includes(lowerKey) || lowerKey.startsWith('x-edge-') || lowerKey.startsWith('x-amz-')) {
+                console.warn(`\x1b[33m⚠️  [CloudFrontize] WARNING: Modified blacklisted header "${key}" in ${hookType}. AWS CloudFront will reject this request/response with a 502 error.\x1b[0m`);
+            }
+        }
     }
 
     /**
@@ -183,8 +226,10 @@ class EdgeRunner {
             const result = await this._invoke(vr.handler, record);
             if (!result) return null;
             if (result.status) {
+                this._validateBlacklistedHeaders(result.headers, 'viewer-request (short-circuit)');
                 return { shortCircuit: true, response: result, type: 'viewer-request' };
             }
+            this._validateBlacklistedHeaders(result.headers, 'viewer-request');
             record.request = result;
             finalType = 'viewer-request';
         }
@@ -193,13 +238,16 @@ class EdgeRunner {
             const result = await this._invoke(or.handler, record);
             if (!result) return null;
             if (result.status) {
+                this._validateBlacklistedHeaders(result.headers, 'origin-request (short-circuit)');
                 return { shortCircuit: true, response: result, type: 'origin-request' };
             }
+            this._validateBlacklistedHeaders(result.headers, 'origin-request');
             record.request = result;
             finalType = 'origin-request';
         }
 
-        return { url: record.request.uri, headers: record.request.headers, type: finalType };
+        const buildUrl = record.request.querystring ? `${record.request.uri}?${record.request.querystring}` : record.request.uri;
+        return { url: buildUrl, headers: record.request.headers, type: finalType };
     }
 
     /**
@@ -221,12 +269,14 @@ class EdgeRunner {
         if (or) {
             const result = await this._invoke(or.handler, record);
             if (!result) return null;
+            this._validateBlacklistedHeaders(result.headers, 'origin-response');
             record.response = result;
         }
 
         if (vr) {
             const result = await this._invoke(vr.handler, record);
             if (!result) return null;
+            this._validateBlacklistedHeaders(result.headers, 'viewer-response');
             record.response = result;
         }
 

@@ -78,6 +78,13 @@ Your module(s) must export:
 > - It silently ignores files without the required `hookType` and `handler` exports (like helpers/utils).
 > - It will fail-fast if it detects multiple files trying to bind to the *same* `hookType` (AWS CloudFront only supports one per trigger).
 
+> **🏅 100% Emulation Fidelity**
+> Supported out-of-the-box perfectly matching AWS CloudFront:
+> - **`async/await` and Promises** (no need for legacy callbacks!)
+> - **The `context` Object** (mocked context properties to support edge logging/metrics tools, like Datadog)
+> - **Query Strings** (`request.querystring` is parsed correctly natively)
+> - **Header Failsafes** (Bright console warnings if you mutate blacklisted headers like `Host`, saving you a production AWS `502 Bad Gateway` error)
+
 ### Exported Hook Types
 - `'viewer-request'`: Intercept before cache. Often used for redirects or auth.
 - `'origin-request'` *(default)*: Intercept before forwarding to the origin. Often used for URI rewrites.
