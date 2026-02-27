@@ -1,31 +1,39 @@
-const ncc = require('@vercel/ncc');
+const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
 
 async function build() {
     const dist = path.join(__dirname, '../dist');
 
-    // 1. Clean dist folder (Cross-platform native Node)
+    // 1. Clean dist folder
     if (fs.existsSync(dist)) {
         fs.rmSync(dist, { recursive: true, force: true });
     }
 
-    console.log('🚀 Compiling with ncc...');
+    console.log('🚀 Building with esbuild (Strict CommonJS)...');
 
-    // 2. Run ncc
-    const { code, assets } = await ncc(path.join(__dirname, '../bin/cli.js'), {
+    // 2. Execute bundle
+    await esbuild.build({
+        entryPoints: [path.join(__dirname, '../bin/cli.js')],
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',         // Hard-enforces CommonJS (no 'import' statements)
+        target: 'node20',      // Optimizes for your specific Node version
         minify: true,
-        externals: ['serve-handler']
+        outfile: path.join(dist, 'cli.js'),
+        banner: {
+            js: '#!/usr/bin/env node', // Native injection prevents encoding errors
+        },
+        external: ['fsevents'], // Exclude platform-specific optional binaries
     });
 
-    // 3. Write output to dist/cli.js directly
-    if (!fs.existsSync(dist)) fs.mkdirSync(dist);
-    fs.writeFileSync(path.join(dist, 'cli.js'), code, { mode: 0o755 });
+    // 3. Ensure executable permissions for CLI use
+    fs.chmodSync(path.join(dist, 'cli.js'), 0o755);
 
-    console.log('✅ Build complete: dist/cli.js');
+    console.log('✅ Build successful: dist/cli.js is ready.');
 }
 
 build().catch(err => {
-    console.error(err);
+    console.error('❌ Build failed:', err);
     process.exit(1);
 });

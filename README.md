@@ -33,6 +33,7 @@ npx cloudfrontize-lambda-at-edge ./dist
 ---
 
 ## Usage
+`cloudfrontize` is designed emulate the popular `serve`, so you have access to the cli you know and love. You can launch it from any project directory to instantly simulate a production-grade CloudFront environment locally.
 
 ```bash
 cloudfrontize [directory] [options]

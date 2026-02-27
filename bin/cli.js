@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 const { Command } = require('commander');
 const { startServer } = require('../src/index.js');
 const { EdgeRunner } = require('../src/edgeRunner.js');

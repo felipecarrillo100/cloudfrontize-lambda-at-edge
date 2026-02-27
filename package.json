@@ -14,8 +14,8 @@
     "build": "node scripts/build.js",
     "prepublishOnly": "npm run build",
     "test": "jest --forceExit",
-    "test:local": "node ./bin/cli.js --edge samples/basic ./wwwsample/dist -l 5174",
-    "test:dist": "node ./dist/cli.js --edge samples/basic ./wwwsample/dist -l 5174"
+    "test:local": "node ./bin/cli.js --edge samples/basic www/dist -l 5174",
+    "test:dist": "node ./dist/cli.js --edge samples/basic www/dist -l 5174"
   },
   "dependencies": {
     "commander": "^11.0.0",
@@ -23,7 +23,7 @@
     "serve-handler": "^6.1.6"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.1",
+    "esbuild": "^0.27.3",
     "jest": "^30.2.0"
   },
   "keywords": [
