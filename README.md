@@ -2,18 +2,19 @@
 
 > Simulate your Lambda@Edge functions locally on a CloudFront-like static server.
 
-A CLI tool for local development and testing of AWS CloudFront deployments with **Lambda@Edge** support. Similar to [`serve`](https://www.npmjs.com/package/serve) but with an accurate simulation of CloudFront's compression behaviour and the ability to run and test your Lambda@Edge functions before deploying to production.
+A CLI tool for local development and testing of AWS CloudFront deployments with **full Lambda@Edge** support. Similar to [`serve`](https://www.npmjs.com/package/serve) but with an accurate simulation of CloudFront's compression behaviour and the ability to dynamically hot-reload and test your Lambda@Edge functions before deploying to production.
 
 ---
 
 ## Why?
 
-CloudFront automatically compresses files **smaller than 10 MB** on-the-fly. For files **larger than 10 MB** (e.g. large bundled vendor assets), you need to serve a **pre-compressed** version via a Lambda@Edge function.
+The CloudFront/Lambda@Edge development loop is notoriously slow. You write code, package it, deploy it, and wait minutes for it to propagate just to test a simple header injection or URI rewrite.
 
-This tool lets you:
-- Serve your static build locally with CloudFront-accurate behaviour.
-- Load and run your own `Lambda@Edge` module for content negotiation.
-- Test request rewriting logic before deploying to AWS.
+With **CloudFrontize**, you can:
+- Serve your static build locally with CloudFront-accurate behaviour (including the 10MB auto-compression limit).
+- Dynamically load your Lambda@Edge modules at runtime.
+- **Hot-reload** your Lambda functions when you save code changes — zero restart required.
+- Test all **4 CloudFront trigger points**: `viewer-request`, `origin-request`, `origin-response`, and `viewer-response`.
 
 ---
 
@@ -37,21 +38,16 @@ npx cloudfrontize-lambda-at-edge ./dist
 cloudfrontize [directory] [options]
 ```
 
-### Arguments
-
-| Argument      | Description                          | Default |
-|---------------|--------------------------------------|---------|
-| `[directory]` | Directory to serve                   | `.`     |
-
 ### Options
 
 | Flag                    | Description                                           | Default |
 |-------------------------|-------------------------------------------------------|---------|
+| `-e, --edge <path>`     | Path to a Lambda@Edge module to simulate             | null    |
 | `-p, --port <number>`   | Port to listen on                                     | `3000`  |
 | `-l, --listen <uri>`    | Listen URI (overrides `--port`)                       | `3000`  |
 | `-s, --single`          | SPA mode — rewrite all 404s to `index.html`           | off     |
 | `-C, --cors`            | Enable `Access-Control-Allow-Origin: *`               | off     |
-| `-d, --debug`           | Show content negotiation logs                         | off     |
+| `-d, --debug`           | Show Lambda execution logs and rewrites               | off     |
 | `-u, --no-compression`  | Disable automatic on-the-fly compression              | off     |
 | `--no-etag`             | Disable ETag headers                                  | off     |
 | `-L, --no-request-logging` | Mute startup logs                                 | off     |
@@ -59,93 +55,69 @@ cloudfrontize [directory] [options]
 ### Examples
 
 ```bash
-# Serve current directory on port 3000
-cloudfrontize .
+# Serve static files as a standard CloudFront distribution
+cloudfrontize ./dist
 
-# Serve a specific build folder on port 5174 with debug logs
-cloudfrontize ./dist -l 5174 -d
+# Test an origin-request Lambda to rewrite large files to pre-compressed versions
+cloudfrontize ./dist --edge ./src/lambdas/rewriter.js -d
 
-# SPA mode with CORS enabled
-cloudfrontize ./dist -s -C
+# Test a viewer-response Lambda that adds security headers
+cloudfrontize ./dist --edge ./src/lambdas/security.js
 ```
 
 ---
 
 ## Lambda@Edge Integration
 
-Place your Lambda@Edge module at:
+Your module must export:
+1. A standard Lambda@Edge `handler` function.
+2. An optional `hookType` string declaring when it should fire.
 
-```
-src/edge/contentNegotiation.js
-```
+### Exported Hook Types
+- `'viewer-request'`: Intercept before cache. Often used for redirects or auth.
+- `'origin-request'` *(default)*: Intercept before forwarding to the origin. Often used for URI rewrites.
+- `'origin-response'`: Intercept after origin responds. Often used to inject Cache-Control headers.
+- `'viewer-response'`: Intercept before sending to the viewer. Often used to inject security headers.
 
-Your module must export a standard Lambda@Edge handler:
+### Examples
+
+#### 1. Origin Request (Bypass 10MB Limit via Pre-compressed Assets)
 
 ```js
-'use strict';
-
+exports.hookType = 'origin-request';
 exports.handler = (event, context, callback) => {
     const request = event.Records[0].cf.request;
-    const headers = request.headers;
-    const uri = request.uri;
+    const ae = request.headers['accept-encoding']?.[0]?.value || '';
 
-    // Example: rewrite JS/CSS requests to pre-compressed versions
-    if (uri.match(/\.(js|css)$/)) {
-        const ae = headers['accept-encoding'];
-        const acceptEncoding = (ae && ae.length > 0) ? ae[0].value : '';
-
-        if (acceptEncoding.includes('br')) {
-            request.uri += '.br';
-        } else if (acceptEncoding.includes('gzip')) {
-            request.uri += '.gz';
-        }
+    // If JS/CSS, try to serve a pre-compressed `.br` version
+    if (request.uri.match(/\.(js|css)$/)) {
+        if (ae.includes('br')) request.uri += '.br';
+        else if (ae.includes('gzip')) request.uri += '.gz';
     }
-
     callback(null, request);
 };
 ```
+*(CloudFrontize will automatically fall back to the original file if the `.br`/`.gz` files don't exist locally!)*
 
-> **Tip:** Pre-compress your large assets at build time (e.g. `vendor-*.js`) and place the `.br` / `.gz` files alongside the originals. CloudFrontize will serve the pre-compressed version when available.
+#### 2. Viewer Response (Security Headers)
+
+```js
+exports.hookType = 'viewer-response';
+exports.handler = (event, context, callback) => {
+    const response = event.Records[0].cf.response;
+    response.headers['strict-transport-security'] = [{ key: 'Strict-Transport-Security', value: 'max-age=63072000' }];
+    response.headers['x-frame-options'] = [{ key: 'X-Frame-Options', value: 'DENY' }];
+    callback(null, response);
+};
+```
+
+*(See `src/edge/examples/` in the repository for full examples of all 4 hook types).*
 
 ---
 
-## How It Works
+## Hot Reload Environment
 
-```
-Browser Request
-      │
-      ▼
-[Lambda@Edge Simulation]  ←──── src/edge/contentNegotiation.js
-  Tries to rewrite URI to .br or .gz
-      │
-      ▼
-[Existence Check]  (src/index.js)
-  ├── Pre-compressed file EXISTS  → serve it, set Content-Encoding header ✅
-  └── Pre-compressed file MISSING → fall back to original (no 404) ✅
-      │
-      ▼
-[Compression Middleware]
-  ├── File < 10 MB → compress on-the-fly (simulates CloudFront auto-compress) ✅
-  └── File > 10 MB → pass through uncompressed ✅
-```
-
----
-
-## Pre-compressing Assets
-
-Use a build script to generate `.br` and `.gz` versions of your large assets:
-
-```bash
-# Brotli
-brotli --best ./dist/assets/vendor-*.js
-
-# Gzip
-gzip -k ./dist/assets/vendor-*.js
-```
-
-Place the generated `.br` / `.gz` files in the same directory as the originals.
-
----
+CloudFrontize watches your loaded `--edge` module. When you save changes to your Lambda file, it instantly reloads the module memory. You can tweak your Lambda logic and just refresh the browser — no server restarts required!
 
 ## License
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const { Command } = require('commander');
-const { startServer } = require('../src/index.js'); // Standard require
+const { startServer } = require('../src/index.js');
+const { EdgeRunner } = require('../src/edgeRunner.js');
 const path = require('path');
 
 const program = new Command();
@@ -18,12 +19,21 @@ program
     .option('-u, --no-compression', 'disable auto-compression for small files')
     .option('--no-etag', 'disable ETag')
     .option('-L, --no-request-logging', 'mute logs')
+    .option('-e, --edge <path>', 'path to a Lambda@Edge module to simulate')
     .action((directory, options) => {
         const port = options.listen !== '3000' ? options.listen : options.port;
+
+        let edgeRunner = null;
+        if (options.edge) {
+            const edgePath = path.resolve(options.edge);
+            edgeRunner = new EdgeRunner(edgePath, { debug: options.debug });
+        }
+
         startServer({
             ...options,
             port: parseInt(port),
-            directory: path.resolve(directory)
+            directory: path.resolve(directory),
+            edgeRunner
         });
     });
 
