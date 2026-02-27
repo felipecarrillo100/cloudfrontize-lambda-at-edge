@@ -21,49 +21,81 @@ class EdgeRunner {
     constructor(edgePath, options = {}) {
         this.edgePath = path.resolve(edgePath);
         this.debug = options.debug || false;
-        this.module = null;
-        this.hookType = 'origin-request';
+        this.modules = {}; // hookType -> { handler, file }
 
         this._load();
         this._watch();
     }
 
     _load() {
+        this.modules = {};
+        try {
+            const stat = fs.statSync(this.edgePath);
+            if (stat.isDirectory()) {
+                const files = fs.readdirSync(this.edgePath).filter(f => f.endsWith('.js'));
+                for (const f of files) {
+                    this._loadFile(path.join(this.edgePath, f));
+                }
+            } else {
+                this._loadFile(this.edgePath);
+            }
+        } catch (err) {
+            console.error(`❌ [CloudFrontize] Failed to load edge path: ${err.message}`);
+        }
+    }
+
+    _loadFile(filePath) {
         try {
             // Clear from require cache to support hot reload
-            delete require.cache[require.resolve(this.edgePath)];
-            this.module = require(this.edgePath);
-            this.hookType = this.module.hookType || 'origin-request';
+            delete require.cache[require.resolve(filePath)];
+            const mod = require(filePath);
+
+            // Ignore files without metadata
+            if (!mod.hookType || !mod.handler) {
+                return;
+            }
+
+            let hookType = mod.hookType || 'origin-request';
 
             const valid = ['viewer-request', 'origin-request', 'origin-response', 'viewer-response'];
-            if (!valid.includes(this.hookType)) {
-                console.warn(`⚠️  [CloudFrontize] Unknown hookType "${this.hookType}". Defaulting to "origin-request".`);
-                this.hookType = 'origin-request';
+            if (!valid.includes(hookType)) {
+                console.warn(`⚠️  [CloudFrontize] Unknown hookType "${hookType}" in ${filePath}. Defaulting to "origin-request".`);
+                hookType = 'origin-request';
             }
 
-            if (typeof this.module.handler !== 'function') {
-                throw new Error(`Edge module at ${this.edgePath} must export a "handler" function.`);
+            if (typeof mod.handler !== 'function') {
+                return; // skip if no valid handler
             }
+
+            if (this.modules[hookType]) {
+                console.error(`Error: Found multiple handlers for '${hookType}' in ${path.basename(this.modules[hookType].file)} and ${path.basename(filePath)}. AWS CloudFront only supports one per trigger. Only one of each type is alllowed.`);
+                process.exit(1);
+            }
+
+            this.modules[hookType] = { handler: mod.handler, file: filePath };
 
             if (this.debug) {
-                console.log(`✅ [CloudFrontize] Loaded edge module: ${path.basename(this.edgePath)} (${this.hookType})`);
+                console.log(`✅ [CloudFrontize] Loaded edge module: ${path.basename(filePath)} (${hookType})`);
             }
         } catch (err) {
             console.error(`❌ [CloudFrontize] Failed to load edge module: ${err.message}`);
-            this.module = null;
         }
     }
 
     _watch() {
         try {
-            fs.watch(this.edgePath, { persistent: false }, (eventType) => {
-                if (eventType === 'change') {
+            fs.watch(this.edgePath, { persistent: false }, (eventType, filename) => {
+                if (eventType === 'change' && filename && filename.endsWith('.js')) {
+                    console.log(`🔄 [CloudFrontize] Edge module changed, reloading: ${filename || path.basename(this.edgePath)}`);
+                    this._load();
+                } else if (!filename) {
+                    // For single files, filename might be null on some platforms
                     console.log(`🔄 [CloudFrontize] Edge module changed, reloading: ${path.basename(this.edgePath)}`);
                     this._load();
                 }
             });
         } catch (err) {
-            console.warn(`⚠️  [CloudFrontize] Could not watch edge file: ${err.message}`);
+            console.warn(`⚠️  [CloudFrontize] Could not watch edge path: ${err.message}`);
         }
     }
 
@@ -71,14 +103,12 @@ class EdgeRunner {
      * Run the Lambda handler with a simulated CloudFront event.
      * Returns a Promise resolving to the modified request or response object.
      */
-    _invoke(eventRecord) {
+    _invoke(handler, eventRecord) {
         return new Promise((resolve, reject) => {
-            if (!this.module) return resolve(null);
-
             const event = { Records: [{ cf: eventRecord }] };
 
             try {
-                this.module.handler(event, {}, (err, result) => {
+                handler(event, {}, (err, result) => {
                     if (err) {
                         console.error(`❌ [CloudFrontize] Edge handler error: ${err.message}`);
                         return resolve(null); // Fail open — pass through
@@ -138,23 +168,38 @@ class EdgeRunner {
      * returned a short-circuit response (e.g. a 301 redirect).
      *
      * @param {import('http').IncomingMessage} req
-     * @returns {Promise<{url: string, headers: object}|{shortCircuit: true, response: object}|null>}
+     * @returns {Promise<{url: string, headers: object, type: string}|{shortCircuit: true, response: object}|null>}
      */
     async runRequestHook(req) {
-        if (!this.module) return null;
-        if (this.hookType !== 'viewer-request' && this.hookType !== 'origin-request') return null;
+        const vr = this.modules['viewer-request'];
+        const or = this.modules['origin-request'];
 
-        const record = this._buildRequestRecord(req);
-        const result = await this._invoke(record);
-        if (!result) return null;
+        if (!vr && !or) return null;
 
-        // Lambda returned a response object (short-circuit, e.g. redirect)
-        if (result.status) {
-            return { shortCircuit: true, response: result };
+        let record = this._buildRequestRecord(req);
+        let finalType = null;
+
+        if (vr) {
+            const result = await this._invoke(vr.handler, record);
+            if (!result) return null;
+            if (result.status) {
+                return { shortCircuit: true, response: result, type: 'viewer-request' };
+            }
+            record.request = result;
+            finalType = 'viewer-request';
         }
 
-        // Lambda returned a modified request
-        return { url: result.uri, headers: result.headers };
+        if (or) {
+            const result = await this._invoke(or.handler, record);
+            if (!result) return null;
+            if (result.status) {
+                return { shortCircuit: true, response: result, type: 'origin-request' };
+            }
+            record.request = result;
+            finalType = 'origin-request';
+        }
+
+        return { url: record.request.uri, headers: record.request.headers, type: finalType };
     }
 
     /**
@@ -166,16 +211,28 @@ class EdgeRunner {
      * @returns {Promise<object|null>} Updated headers object or null
      */
     async runResponseHook(req, responseData) {
-        if (!this.module) return null;
-        if (this.hookType !== 'origin-response' && this.hookType !== 'viewer-response') return null;
+        const or = this.modules['origin-response'];
+        const vr = this.modules['viewer-response'];
 
-        const record = this._buildResponseRecord(req, responseData);
-        const result = await this._invoke(record);
-        if (!result) return null;
+        if (!or && !vr) return null;
+
+        let record = this._buildResponseRecord(req, responseData);
+
+        if (or) {
+            const result = await this._invoke(or.handler, record);
+            if (!result) return null;
+            record.response = result;
+        }
+
+        if (vr) {
+            const result = await this._invoke(vr.handler, record);
+            if (!result) return null;
+            record.response = result;
+        }
 
         // Flatten CloudFront header format back to plain key:value
         const flat = {};
-        for (const [key, values] of Object.entries(result.headers || {})) {
+        for (const [key, values] of Object.entries(record.response.headers || {})) {
             if (Array.isArray(values) && values.length > 0) {
                 flat[key] = values[0].value;
             }

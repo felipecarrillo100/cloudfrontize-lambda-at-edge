@@ -86,11 +86,11 @@ function startServer(options) {
                 // Lambda modified the request URI
                 if (hookResult.url && hookResult.url !== req.url) {
                     if (options.debug) {
-                        console.log(`[CloudFrontize] ${edgeRunner.hookType}: ${req.url} -> ${hookResult.url}`);
+                        console.log(`[CloudFrontize] ${hookResult.type || 'request-hook'}: ${req.url} -> ${hookResult.url}`);
                     }
 
                     // For origin-request: check if the rewritten file exists
-                    if (edgeRunner.hookType === 'origin-request') {
+                    if (hookResult.type === 'origin-request') {
                         const fullPath = path.join(options.directory, hookResult.url);
                         if (fs.existsSync(fullPath)) {
                             req.url = hookResult.url;
@@ -122,7 +122,7 @@ function startServer(options) {
         // We pre-run the hook with a mock 200 response snapshot and pre-apply
         // the resulting headers via setHeader() BEFORE the static handler runs.
         // This avoids ERR_HTTP_HEADERS_SENT since headers are set before any write().
-        if (edgeRunner && (edgeRunner.hookType === 'origin-response' || edgeRunner.hookType === 'viewer-response')) {
+        if (edgeRunner && (edgeRunner.modules['origin-response'] || edgeRunner.modules['viewer-response'])) {
             const mockResponseData = { status: 200, headers: {} };
             const extraHeaders = await edgeRunner.runResponseHook(req, mockResponseData);
             if (extraHeaders) {
@@ -130,7 +130,7 @@ function startServer(options) {
                     res.setHeader(k, v);
                 }
                 if (options.debug) {
-                    console.log(`[CloudFrontize] ${edgeRunner.hookType}: injected ${Object.keys(extraHeaders).join(', ')}`);
+                    console.log(`[CloudFrontize] response-hooks: injected ${Object.keys(extraHeaders).join(', ')}`);
                 }
             }
         }
@@ -155,7 +155,8 @@ function startServer(options) {
         if (!options.noRequestLogging) {
             console.log(`\n☁️  Cloudfrontize running on http://localhost:${options.port}`);
             if (edgeRunner) {
-                console.log(`⚡ Edge module: ${path.basename(edgeRunner.edgePath)} (${edgeRunner.hookType})`);
+                const hooks = Object.keys(edgeRunner.modules).join(', ');
+                console.log(`⚡ Edge modules loaded from: ${path.basename(edgeRunner.edgePath)} (${hooks || 'none'})`);
             }
             if (options.debug) console.log(`🛠  Debug mode active`);
         }

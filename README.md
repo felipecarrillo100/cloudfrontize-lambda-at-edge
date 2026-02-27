@@ -12,7 +12,7 @@ The CloudFront/Lambda@Edge development loop is notoriously slow. You write code,
 
 With **CloudFrontize**, you can:
 - Serve your static build locally with CloudFront-accurate behaviour (including the 10MB auto-compression limit).
-- Dynamically load your Lambda@Edge modules at runtime.
+- Dynamically load your Lambda@Edge modules at runtime (supports single files or entire directories!).
 - **Hot-reload** your Lambda functions when you save code changes — zero restart required.
 - Test all **4 CloudFront trigger points**: `viewer-request`, `origin-request`, `origin-response`, and `viewer-response`.
 
@@ -42,7 +42,7 @@ cloudfrontize [directory] [options]
 
 | Flag                    | Description                                           | Default |
 |-------------------------|-------------------------------------------------------|---------|
-| `-e, --edge <path>`     | Path to a Lambda@Edge module to simulate             | null    |
+| `-e, --edge <path>`     | Path to a Lambda@Edge module (or folder of modules)  | null    |
 | `-p, --port <number>`   | Port to listen on                                     | `3000`  |
 | `-l, --listen <uri>`    | Listen URI (overrides `--port`)                       | `3000`  |
 | `-s, --single`          | SPA mode — rewrite all 404s to `index.html`           | off     |
@@ -61,17 +61,22 @@ cloudfrontize ./dist
 # Test an origin-request Lambda to rewrite large files to pre-compressed versions
 cloudfrontize ./dist --edge ./src/lambdas/rewriter.js -d
 
-# Test a viewer-response Lambda that adds security headers
-cloudfrontize ./dist --edge ./src/lambdas/security.js
+# Test multiple Lambda functions across different lifecycle stages at once!
+cloudfrontize ./dist --edge ./src/edge-functions/
 ```
 
 ---
 
 ## Lambda@Edge Integration
 
-Your module must export:
+Your module(s) must export:
 1. A standard Lambda@Edge `handler` function.
 2. An optional `hookType` string declaring when it should fire.
+
+> **💡 Directory Support & Multi-Hook Testing**
+> You can pass a **directory** to the `--edge` flag (e.g. `--edge ./src/edge-lambdas/`). CloudFrontize will scan the directory and automatically inject every valid Lambda into the lifecycle!
+> - It silently ignores files without the required `hookType` and `handler` exports (like helpers/utils).
+> - It will fail-fast if it detects multiple files trying to bind to the *same* `hookType` (AWS CloudFront only supports one per trigger).
 
 ### Exported Hook Types
 - `'viewer-request'`: Intercept before cache. Often used for redirects or auth.
