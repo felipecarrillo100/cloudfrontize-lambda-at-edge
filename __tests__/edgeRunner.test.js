@@ -1,24 +1,28 @@
 const { EdgeRunner } = require('../src/edgeRunner');
 
-// Suppress console outputs during test runs so the Jest reporter stays clean
-beforeAll(() => {
-    jest.spyOn(console, 'log').mockImplementation(() => { });
-    jest.spyOn(console, 'warn').mockImplementation(() => { });
-    jest.spyOn(console, 'error').mockImplementation(() => { });
-});
-
-afterAll(() => {
-    console.log.mockRestore();
-    console.warn.mockRestore();
-    console.error.mockRestore();
-});
+/**
+ * EDGE RUNNER EMULATION FIDELITY
+ * Verifies that the local runner correctly mocks the AWS environment.
+ */
 
 describe('EdgeRunner 100% Emulation Fidelity', () => {
     let runners = [];
 
+    // 🛡️ Suppress console outputs during test runs so the Jest reporter stays clean
+    beforeAll(() => {
+        jest.spyOn(console, 'log').mockImplementation(() => { });
+        jest.spyOn(console, 'warn').mockImplementation(() => { });
+        jest.spyOn(console, 'error').mockImplementation(() => { });
+    });
+
+    afterAll(() => {
+        // Cleanly restores all mocks to their original state
+        jest.restoreAllMocks();
+    });
+
     afterEach(() => {
         for (const r of runners) {
-            r.close();
+            if (r && typeof r.close === 'function') r.close();
         }
         runners = [];
     });
@@ -29,7 +33,6 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
         const res = await runner.runRequestHook({ headers: {}, url: '/original.html' });
 
         expect(res).toBeDefined();
-        // The async handler rewrote the URI after a 500ms delay
         expect(res.url).toBe('/async-success.html');
     });
 
@@ -38,7 +41,6 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
         runners.push(runner);
         const res = await runner.runRequestHook({ headers: {}, url: '/' });
 
-        // If the context wasn't passed, the handler throws an error and returns null
         expect(res).toBeDefined();
         expect(res).not.toBeNull();
     });
@@ -49,7 +51,6 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
         const res = await runner.runRequestHook({ headers: {}, url: '/page?utm_source=twitter&other=keep' });
 
         expect(res).toBeDefined();
-        // The edge function should have stripped utm_source but kept other
         expect(res.url).toBe('/page?other=keep');
     });
 
@@ -59,7 +60,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
         await runner.runResponseHook({ headers: {}, url: '/' }, { status: 200, headers: {} });
 
-        // The host and via headers triggered the yellow warning
+        // ✅ Spies track the call even though the output is hidden from the terminal
         expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('host'));
         expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('via'));
     });
@@ -68,13 +69,10 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
         const runner = new EdgeRunner('./samples/advanced/multi-hook-app/');
         runners.push(runner);
 
-        // viewer-request test
         const reqRes = await runner.runRequestHook({ headers: {}, url: '/test' });
         expect(reqRes.type).toBe('viewer-request');
 
-        // origin-response test
         const resHookRes = await runner.runResponseHook({ headers: {}, url: '/test' }, { status: 200, headers: {} });
         expect(resHookRes['cache-control']).toBe('public, max-age=86400');
     });
-
 });
