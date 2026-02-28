@@ -2,29 +2,53 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
+const dotenv = require('dotenv');
 
 /**
- * EdgeRunner — Dynamic Lambda@Edge loader with multi-hook support and hot reload.
- *
- * Loads a user-provided Lambda@Edge module and runs it at the correct point
- * in the simulated CloudFront request/response lifecycle.
- *
- * Supported hook types (declared via exports.hookType in the Lambda module):
- *   - 'viewer-request'   : fires before cache check, can modify/reject the request
- *   - 'origin-request'   : fires before forwarding to origin, can rewrite URI/headers
- *   - 'origin-response'  : fires after origin responds, can modify response headers/body
- *   - 'viewer-response'  : fires before sending to viewer, can modify response headers
- *
- * If no hookType is declared, defaults to 'origin-request'.
+ * EdgeRunner — High-Fidelity Lambda@Edge Emulator
+ * Features: VM Sandboxing, Variable Baking, Environment Whitelisting, and Hot Reload.
  */
 class EdgeRunner {
     constructor(edgePath, options = {}) {
         this.edgePath = path.resolve(edgePath);
         this.debug = options.debug || false;
-        this.modules = {}; // hookType -> { handler, file }
+        this.envPath = options.envPath;
+        this.bakePath = options.bakePath;
+        this.outputPath = options.outputPath;
 
+        this.modules = {};
+        this.envVars = {};
+        this.bakeVars = {};
+
+        // AWS Reserved variables that Lambda@Edge allows
+        this.whitelist = [
+            'AWS_REGION', 'AWS_DEFAULT_REGION', 'AWS_LAMBDA_FUNCTION_NAME',
+            'AWS_LAMBDA_FUNCTION_VERSION', 'AWS_LAMBDA_FUNCTION_MEMORY_SIZE',
+            'AWS_LAMBDA_LOG_GROUP_NAME', 'AWS_LAMBDA_LOG_STREAM_NAME',
+            'NODE_OPTIONS', 'TZ', 'LANG', 'PATH'
+        ];
+
+        this._loadFidelityFiles();
         this._load();
         this._watch();
+    }
+
+    _loadFidelityFiles() {
+        if (this.envPath && fs.existsSync(this.envPath)) {
+            const raw = dotenv.parse(fs.readFileSync(this.envPath));
+            for (const [key, value] of Object.entries(raw)) {
+                if (this.whitelist.includes(key)) {
+                    this.envVars[key] = value;
+                } else {
+                    // 🛡️ Throw instead of exit so callers/tests can handle it
+                    throw new Error(`[CloudFrontize] Restricted Variable: "${key}" is not a reserved AWS variable. Use --bake for custom variables.`);
+                }
+            }
+        }
+        if (this.bakePath && fs.existsSync(this.bakePath)) {
+            this.bakeVars = dotenv.parse(fs.readFileSync(this.bakePath));
+        }
     }
 
     _load() {
@@ -32,143 +56,123 @@ class EdgeRunner {
         try {
             const stat = fs.statSync(this.edgePath);
             if (stat.isDirectory()) {
-                const files = fs.readdirSync(this.edgePath).filter(f => f.endsWith('.js'));
-                for (const f of files) {
-                    this._loadFile(path.join(this.edgePath, f));
-                }
+                fs.readdirSync(this.edgePath)
+                    .filter(f => f.endsWith('.js'))
+                    .forEach(f => this._loadFile(path.join(this.edgePath, f)));
             } else {
                 this._loadFile(this.edgePath);
             }
         } catch (err) {
-            console.error(`❌ [CloudFrontize] Failed to load edge path: ${err.message}`);
+            console.error(`❌ [CloudFrontize] Load failed: ${err.message}`);
         }
     }
 
     _loadFile(filePath) {
         try {
-            // Clear from require cache to support hot reload
-            delete require.cache[require.resolve(filePath)];
-            const mod = require(filePath);
+            let code = fs.readFileSync(filePath, 'utf8');
 
-            // Ignore files without metadata
-            if (!mod.hookType || !mod.handler) {
-                return;
+            // ⚡ Variable Baking
+            for (const [key, value] of Object.entries(this.bakeVars)) {
+                code = code.replace(new RegExp(`__${key}__`, 'g'), value);
             }
 
-            let hookType = mod.hookType || 'origin-request';
+            if (this.outputPath) {
+                const outDir = path.dirname(this.outputPath);
+                if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+                fs.writeFileSync(this.outputPath, code);
+            }
+
+            // 🛡️ The Hardened Sandbox Bridge
+            const mockModule = { exports: {} };
+            const context = vm.createContext({
+                module: mockModule,
+                exports: mockModule.exports,
+                Buffer,
+                process: {
+                    env: { ...this.envVars },
+                    nextTick: process.nextTick,
+                    version: process.version
+                },
+                console,
+                setTimeout, clearTimeout, setInterval, clearInterval,
+                setImmediate, clearImmediate,
+                URL, URLSearchParams, TextEncoder, TextDecoder,
+                crypto: require('crypto'),
+                util: require('util'),
+                stream: require('stream'),
+                require: (id) => {
+                    const forbidden = ['fs', 'child_process', 'cluster'];
+                    if (forbidden.includes(id)) {
+                        throw new Error(`PermissionDenied: Module "${id}" is not available in Lambda@Edge.`);
+                    }
+                    return id.startsWith('.')
+                        ? require(path.resolve(path.dirname(filePath), id))
+                        : require(id);
+                },
+                __dirname: path.dirname(filePath),
+                __filename: filePath
+            });
+
+            new vm.Script(code).runInContext(context);
+            const mod = mockModule.exports;
+
+            // Strict Strategy: Must have hookType and handler function
+            if (!mod.hookType || typeof mod.handler !== 'function') return;
 
             const valid = ['viewer-request', 'origin-request', 'origin-response', 'viewer-response'];
-            if (!valid.includes(hookType)) {
-                console.warn(`⚠️  [CloudFrontize] Unknown hookType "${hookType}" in ${filePath}. Defaulting to "origin-request".`);
-                hookType = 'origin-request';
-            }
+            if (!valid.includes(mod.hookType)) return;
 
-            if (typeof mod.handler !== 'function') {
-                return; // skip if no valid handler
-            }
-
-            if (this.modules[hookType]) {
-                console.error(`Error: Found multiple handlers for '${hookType}' in ${path.basename(this.modules[hookType].file)} and ${path.basename(filePath)}. AWS CloudFront only supports one per trigger. Only one of each type is alllowed.`);
+            if (this.modules[mod.hookType]) {
+                console.error(`Error: Multiple handlers for '${mod.hookType}'. AWS allows only one.`);
                 process.exit(1);
             }
 
-            this.modules[hookType] = { handler: mod.handler, file: filePath };
-
-            if (this.debug) {
-                console.log(`✅ [CloudFrontize] Loaded edge module: ${path.basename(filePath)} (${hookType})`);
-            }
+            this.modules[mod.hookType] = { handler: mod.handler, file: filePath };
         } catch (err) {
-            console.error(`❌ [CloudFrontize] Failed to load edge module: ${err.message}`);
+            console.error(`❌ [CloudFrontize] Error in ${path.basename(filePath)}: ${err.message}`);
         }
     }
 
-    _watch() {
-        try {
-            this.watcher = fs.watch(this.edgePath, { persistent: false }, (eventType, filename) => {
-                if (eventType === 'change' && filename && filename.endsWith('.js')) {
-                    console.log(`🔄 [CloudFrontize] Edge module changed, reloading: ${filename || path.basename(this.edgePath)}`);
-                    this._load();
-                } else if (!filename) {
-                    // For single files, filename might be null on some platforms
-                    console.log(`🔄 [CloudFrontize] Edge module changed, reloading: ${path.basename(this.edgePath)}`);
-                    this._load();
-                }
-            });
-        } catch (err) {
-            console.warn(`⚠️  [CloudFrontize] Could not watch edge path: ${err.message}`);
-        }
-    }
-
-    /**
-     * Gracefully close the EdgeRunner's open filesystem watchers.
-     */
-    close() {
-        if (this.watcher) {
-            this.watcher.close();
-        }
-    }
-
-    /**
-     * Run the Lambda handler with a simulated CloudFront event.
-     * Returns a Promise resolving to the modified request or response object.
-     */
     _invoke(handler, eventRecord) {
         return new Promise((resolve) => {
+            // Reference passing allows handlers to mutate record (Standard AWS behavior)
             const event = { Records: [{ cf: eventRecord }] };
-
-            // AWS Lambda context mock
             const context = {
-                functionName: 'cloudfrontize-local-function',
-                functionVersion: '$LATEST',
-                invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:cloudfrontize-local-function',
-                memoryLimitInMB: '128',
-                awsRequestId: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                logGroupName: '/aws/lambda/cloudfrontize-local-function',
-                logStreamName: `2026/02/27/[$LATEST]${Math.random().toString(36).substr(2, 9)}`,
-                callbackWaitsForEmptyEventLoop: true,
-                getRemainingTimeInMillis: () => 3000 // Dummy value
+                functionName: this.envVars.AWS_LAMBDA_FUNCTION_NAME || 'cloudfrontize-local',
+                awsRequestId: `req-${Date.now()}`,
+                getRemainingTimeInMillis: () => 3000
             };
 
-            const callback = (err, result) => {
-                if (err) {
-                    console.error(`❌ [CloudFrontize] Edge handler callback error: ${err.message || err}`);
-                    return resolve(null); // Fail open — pass through
-                }
-                resolve(result);
+            let settled = false;
+            const finish = (result) => {
+                if (settled) return;
+                settled = true;
+                // If handler returns nothing but mutated the record, resolve with record
+                resolve(result || eventRecord.request || eventRecord.response);
             };
 
             try {
-                const result = handler(event, context, callback);
+                const result = handler(event, context, (err, res) => finish(err ? null : res));
 
-                // If the handler returned a Promise (e.g., an async function)
                 if (result && typeof result.then === 'function') {
-                    result.then(
-                        asyncResult => resolve(asyncResult),
-                        asyncErr => {
-                            console.error(`❌ [CloudFrontize] Edge async handler error: ${asyncErr.message || asyncErr}`);
-                            resolve(null); // Fail open
-                        }
-                    );
+                    result.then(finish).catch(() => finish(null));
+                } else if (result !== undefined) {
+                    finish(result);
                 }
             } catch (err) {
-                console.error(`❌ [CloudFrontize] Edge handler threw: ${err.message || err}`);
-                resolve(null); // Fail open
+                console.error(`❌ [CloudFrontize] Execution error: ${err.message}`);
+                finish(null);
             }
         });
     }
 
-    /**
-     * Build a CloudFront request event record from an incoming Node.js request.
-     */
     _buildRequestRecord(req) {
         const headersRaw = req.headers || {};
         const cfHeaders = {};
         for (const [key, value] of Object.entries(headersRaw)) {
             cfHeaders[key.toLowerCase()] = [{ key, value: String(value) }];
         }
-
         const [uri, querystring] = (req.url || '').split('?');
-
         return {
             request: {
                 method: req.method || 'GET',
@@ -179,124 +183,93 @@ class EdgeRunner {
         };
     }
 
-    /**
-     * Validate against AWS CloudFront's blacklisted headers.
-     * Emits a warning if a user attempts to mutate them.
-     */
     _validateBlacklistedHeaders(headers, hookType) {
         if (!headers) return;
         const blacklisted = ['host', 'via', 'x-cache', 'x-forwarded-for'];
         for (const key of Object.keys(headers)) {
             const lowerKey = key.toLowerCase();
             if (blacklisted.includes(lowerKey) || lowerKey.startsWith('x-edge-') || lowerKey.startsWith('x-amz-')) {
-                console.warn(`\x1b[33m⚠️  [CloudFrontize] WARNING: Modified blacklisted header "${key}" in ${hookType}. AWS CloudFront will reject this request/response with a 502 error.\x1b[0m`);
+                console.warn(`\x1b[33m⚠️  [CloudFrontize] WARNING: Modified blacklisted header "${key}" in ${hookType}.\x1b[0m`);
             }
         }
     }
 
-    /**
-     * Build a CloudFront response event record from a captured response.
-     */
     _buildResponseRecord(req, responseData) {
         const requestRecord = this._buildRequestRecord(req);
         const cfHeaders = {};
         for (const [key, value] of Object.entries(responseData.headers || {})) {
             cfHeaders[key.toLowerCase()] = [{ key, value: String(value) }];
         }
-
         return {
             request: requestRecord.request,
             response: {
                 status: String(responseData.status || 200),
-                statusDescription: responseData.statusDescription || 'OK',
+                statusDescription: 'OK',
                 headers: cfHeaders
             }
         };
     }
 
-    /**
-     * Run viewer-request or origin-request hook.
-     * Returns the (potentially modified) request, or null to signal the Lambda
-     * returned a short-circuit response (e.g. a 301 redirect).
-     *
-     * @param {import('http').IncomingMessage} req
-     * @returns {Promise<{url: string, headers: object, type: string}|{shortCircuit: true, response: object}|null>}
-     */
     async runRequestHook(req) {
-        const vr = this.modules['viewer-request'];
-        const or = this.modules['origin-request'];
-
-        if (!vr && !or) return null;
-
+        const hooks = ['viewer-request', 'origin-request'];
         let record = this._buildRequestRecord(req);
         let finalType = null;
 
-        if (vr) {
-            const result = await this._invoke(vr.handler, record);
-            if (!result) return null;
-            if (result.status) {
-                this._validateBlacklistedHeaders(result.headers, 'viewer-request (short-circuit)');
-                return { shortCircuit: true, response: result, type: 'viewer-request' };
-            }
-            this._validateBlacklistedHeaders(result.headers, 'viewer-request');
-            record.request = result;
-            finalType = 'viewer-request';
-        }
+        for (const type of hooks) {
+            const mod = this.modules[type];
+            if (!mod) continue;
 
-        if (or) {
-            const result = await this._invoke(or.handler, record);
+            const result = await this._invoke(mod.handler, record);
             if (!result) return null;
-            if (result.status) {
-                this._validateBlacklistedHeaders(result.headers, 'origin-request (short-circuit)');
-                return { shortCircuit: true, response: result, type: 'origin-request' };
-            }
-            this._validateBlacklistedHeaders(result.headers, 'origin-request');
+
+            if (result.status) return { shortCircuit: true, response: result, type };
+
+            this._validateBlacklistedHeaders(result.headers, type);
             record.request = result;
-            finalType = 'origin-request';
+            finalType = type;
         }
 
         const buildUrl = record.request.querystring ? `${record.request.uri}?${record.request.querystring}` : record.request.uri;
         return { url: buildUrl, headers: record.request.headers, type: finalType };
     }
 
-    /**
-     * Run origin-response or viewer-response hook.
-     * Returns modified headers to apply to the outgoing response.
-     *
-     * @param {import('http').IncomingMessage} req
-     * @param {{ status: number, headers: object }} responseData
-     * @returns {Promise<object|null>} Updated headers object or null
-     */
     async runResponseHook(req, responseData) {
-        const or = this.modules['origin-response'];
-        const vr = this.modules['viewer-response'];
-
-        if (!or && !vr) return null;
-
+        const hooks = ['origin-response', 'viewer-response'];
         let record = this._buildResponseRecord(req, responseData);
 
-        if (or) {
-            const result = await this._invoke(or.handler, record);
-            if (!result) return null;
-            this._validateBlacklistedHeaders(result.headers, 'origin-response');
-            record.response = result;
-        }
+        for (const type of hooks) {
+            const mod = this.modules[type];
+            if (!mod) continue;
 
-        if (vr) {
-            const result = await this._invoke(vr.handler, record);
-            if (!result) return null;
-            this._validateBlacklistedHeaders(result.headers, 'viewer-response');
-            record.response = result;
-        }
-
-        // Flatten CloudFront header format back to plain key:value
-        const flat = {};
-        for (const [key, values] of Object.entries(record.response.headers || {})) {
-            if (Array.isArray(values) && values.length > 0) {
-                flat[key] = values[0].value;
+            const result = await this._invoke(mod.handler, record);
+            if (result) {
+                this._validateBlacklistedHeaders(result.headers, type);
+                record.response = result;
             }
         }
+
+        const flat = {};
+        for (const [key, values] of Object.entries(record.response.headers || {})) {
+            if (Array.isArray(values) && values.length > 0) flat[key] = values[0].value;
+        }
         return flat;
+    }
+
+    _watch() {
+        const targets = [this.edgePath, this.envPath, this.bakePath].filter(Boolean);
+        targets.forEach(t => {
+            if (fs.existsSync(t)) {
+                fs.watch(t, { persistent: false }, () => {
+                    if (this.debug) console.log(`🔄 [CloudFrontize] Resource changed, reloading...`);
+                    this._loadFidelityFiles();
+                    this._load();
+                });
+            }
+        });
+    }
+
+    close() {
+        if (this.watcher) this.watcher.close();
     }
 }
 
