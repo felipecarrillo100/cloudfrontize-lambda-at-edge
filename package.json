@@ -14,8 +14,8 @@
     "build": "node scripts/build.js",
     "prepublishOnly": "npm run build",
     "test": "jest --forceExit",
-    "test:local": "node ./bin/cli.js --edge samples/basic www/dist -l 5174",
-    "test:dist": "node ./dist/cli.js --edge samples/basic www/dist -l 5174"
+    "test:local": "node ./bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js -l 5174",
+    "test:dist": "node ./dist/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js -l 5174"
   },
   "dependencies": {
     "commander": "^11.0.0",

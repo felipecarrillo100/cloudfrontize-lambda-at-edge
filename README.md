@@ -1,137 +1,182 @@
 # cloudfrontize-lambda-at-edge
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤️-ff69b4?style=for-the-badge&logo=github)](https://github.com/sponsors/felipecarrillo100)
 
-> Simulate your Lambda@Edge functions locally on a CloudFront-like static server.
+### 📣 Stop bowing to the deployment bar! 
 
-A CLI tool for local development and testing of AWS CloudFront deployments with **full Lambda@Edge** support. Similar to [`serve`](https://www.npmjs.com/package/serve) but with an accurate simulation of CloudFront's compression behaviour and the ability to dynamically hot-reload and test your Lambda@Edge functions before deploying to production.
+**Rule the Edge** and become the Hero of the Cloud. **Escape the "Deploy-and-Pray" cycle.** We’ve all been there: you tweak one security header, hit "Deploy," and... **you wait.** For 15 agonizing minutes, you watch a spinning "In Progress" status as AWS propagates your code globally. If there’s a tiny typo? You won't know until you hit a **502 Bad Gateway** and go hunting through CloudWatch logs buried in a random region.
+
+It’s a workflow that kills momentum and turns "quick fixes" into afternoon-long ordeals.
+
+### 👑 Enter CloudFrontize
+
+The ultimate developer productivity tool for AWS CloudFront and Lambda@Edge. It transforms your local static server into a **high-fidelity AWS Edge Location simulation.**
+
+* **Kill the Lag:** Test in milliseconds, not minutes.
+* **Catch the 502s Locally:** Validate headers and URI rewrites before they ever touch an AWS environment.
+* **Stay in the Flow:** Stop wasting hours in the "Deploy → Wait → Check Logs → Fail" loop.
+
+**Start shipping rock-solid Edge logic with total confidence.**
 
 ---
 
-## Why?
+## ⚡ Why Developers & SysAdmins Need This
 
-The CloudFront/Lambda@Edge development loop is notoriously slow. You write code, package it, deploy it, and wait minutes for it to propagate just to test a simple header injection or URI rewrite.
+The CloudFront/Lambda@Edge development loop is notoriously painful. Propagation takes minutes, debugging requires digging through CloudWatch, and a single header typo can bring down your entire production distribution with a **502 Bad Gateway**.
 
-With **CloudFrontize**, you can:
-- Serve your static build locally with CloudFront-accurate behaviour (including the 10MB auto-compression limit).
-- Dynamically load your Lambda@Edge modules at runtime (supports single files or entire directories!).
-- **Hot-reload** your Lambda functions when you save code changes — zero restart required.
-- Test all **4 CloudFront trigger points**: `viewer-request`, `origin-request`, `origin-response`, and `viewer-response`.
+**CloudFrontize** eliminates the wait and the risk:
+
+* **Zero-Config Integration:** If you know how to use Vercel's [serve](https://www.google.com/search?q=%5Bhttps://www.npmjs.com/package/serve%5D(https://www.npmjs.com/package/serve)) package, you already know how to use `cloudfrontize`.
+* **Real-Time Hot Reloading:** Tweak your URI rewrites or security headers and see the results instantly on browser refresh. No packaging, no uploading, no waiting for the "In Progress" spinner.
+* **Debug directly to the console:** Stop hunting for logs in hidden CloudWatch streams across random regions. See your console.log outputs and execution errors live **in your terminal**. 
+* **Production Fidelity:** Emulates in detail CloudFront-specific features & quirks, like the **10MB auto-compression limit**, header blacklisting, and URI normalization.
+* **The "Safety Net":** Catch forbidden header mutations or invalid response structures locally before they ever reach your AWS account.
+
 
 ---
 
-## Install
+## 📦 Install & Go
+Get up and running in seconds. No complex AWS IAM roles, no stack traces—just your code, running locally.
+
+### Install it **Globally:**
 
 ```bash
 npm install -g cloudfrontize-lambda-at-edge
 ```
+Once installed, you can rule the Edge from any directory by simply typing `cloudfrontize`.
 
-Or run directly without installing:
+Point it at your static files  folder (`./www`, `./dist` or `./public`) and point to your Lambda@Edge `.js` file. CloudFrontize handles the rest.
 
 ```bash
-npx cloudfrontize-lambda-at-edge ./dist
+cloudfrontize ./folder --edge ./lambda-at-age-logic.js
+```
+
+### Or **On-the-fly:**
+Noting to install
+```bash
+npx cloudfrontize-lambda-at-edge ./folder --edge ./lambda-at-age-logic.js
 ```
 
 ---
 
-## Usage
-`cloudfrontize` is designed emulate the popular `serve`, so you have access to the cli you know and love. You can launch it from any project directory to instantly simulate a production-grade CloudFront environment locally.
+## 🛠️ CLI Options & Configuration
 
-```bash
-cloudfrontize [directory] [options]
-```
+`cloudfrontize` is designed to be a drop-in replacement for `serve`, but with "Edge Superpowers."
 
-### Options
-
-| Flag                    | Description                                           | Default |
-|-------------------------|-------------------------------------------------------|---------|
-| `-e, --edge <path>`     | Path to a Lambda@Edge module (or folder of modules)  | null    |
-| `-p, --port <number>`   | Port to listen on                                     | `3000`  |
-| `-l, --listen <uri>`    | Listen URI (overrides `--port`)                       | `3000`  |
-| `-s, --single`          | SPA mode — rewrite all 404s to `index.html`           | off     |
-| `-C, --cors`            | Enable `Access-Control-Allow-Origin: *`               | off     |
-| `-d, --debug`           | Show Lambda execution logs and rewrites               | off     |
-| `-u, --no-compression`  | Disable automatic on-the-fly compression              | off     |
-| `--no-etag`             | Disable ETag headers                                  | off     |
-| `-L, --no-request-logging` | Mute startup logs                                 | off     |
-
-### Examples
-
-```bash
-# Serve static files as a standard CloudFront distribution
-cloudfrontize ./dist
-
-# Test an origin-request Lambda to rewrite large files to pre-compressed versions
-cloudfrontize ./dist --edge ./src/lambdas/rewriter.js -d
-
-# Test multiple Lambda functions across different lifecycle stages at once!
-cloudfrontize ./dist --edge ./src/edge-functions/
-```
+| Flag | Description                                                        | Default |
+| --- |--------------------------------------------------------------------| --- |
+| **`-e, --edge <path>`** | Path to a Lambda@Edge module(s) (a js file or a folder of modules) | `null` |
+| **`-p, --port <number>`** | Port to listen on                                                  | `3000` |
+| **`-l, --listen <uri>`** | Listen URI (overrides `--port`)                                    | `3000` |
+| **`-s, --single`** | SPA mode — rewrite all 404s to `index.html`                        | `off` |
+| **`-C, --cors`** | Enable `Access-Control-Allow-Origin: *`                            | `off` |
+| **`-d, --debug`** | Show Lambda execution logs and URI rewrites                        | `off` |
+| **`-u, --no-compression`** | Disable automatic on-the-fly compression                           | `off` |
+| **`--no-etag`** | Disable ETag headers                                               | `off` |
+| **`-L, --no-request-logging`** | Mute startup logs                                                  | `off` |
 
 ---
 
-## Lambda@Edge Integration
+## 🚀 Lambda@Edge Integration
 
-Your module(s) must export:
-1. A standard Lambda@Edge `handler` function.
-2. An optional `hookType` string declaring when it should fire.
-
-> **💡 Directory Support & Multi-Hook Testing**
-> You can pass a **directory** to the `--edge` flag (e.g. `--edge ./src/edge-lambdas/`). CloudFrontize will scan the directory and automatically inject every valid Lambda into the lifecycle!
-> - It silently ignores files without the required `hookType` and `handler` exports (like helpers/utils).
-> - It will fail-fast if it detects multiple files trying to bind to the *same* `hookType` (AWS CloudFront only supports one per trigger).
-
-> **🏅 100% Emulation Fidelity**
-> Supported out-of-the-box perfectly matching AWS CloudFront:
-> - **`async/await` and Promises** (no need for legacy callbacks!)
-> - **The `context` Object** (mocked context properties to support edge logging/metrics tools, like Datadog)
-> - **Query Strings** (`request.querystring` is parsed correctly natively)
-> - **Header Failsafes** (Bright console warnings if you mutate blacklisted headers like `Host`, saving you a production AWS `502 Bad Gateway` error)
+Since there is no AWS CloudFront Console to configure your triggers locally, **it is mandatory to include `exports.hookType` in your JavaScript file.** If this line is missing, CloudFrontize will not know when to fire your function and will ignore the file.
 
 ### Exported Hook Types
-- `'viewer-request'`: Intercept before cache. Often used for redirects or auth.
-- `'origin-request'` *(default)*: Intercept before forwarding to the origin. Often used for URI rewrites.
-- `'origin-response'`: Intercept after origin responds. Often used to inject Cache-Control headers.
-- `'viewer-response'`: Intercept before sending to the viewer. Often used to inject security headers.
+* `'origin-request'`: Intercept **before** forwarding to the origin. Often used for URI rewrites.
+* `'viewer-request'`: Intercept **before** cache. Often used for redirects or authentication.
+* `'origin-response'`: Intercept **after** the origin responds. Often used to inject `Cache-Control` headers.
+* `'viewer-response'`: Intercept **before** sending to the viewer. Often used to inject security headers.
 
-### Examples
+---
 
-#### 1. Origin Request (Bypass 10MB Limit via Pre-compressed Assets)
+## 🐕 Featured Example
+### The "Paws & Pixels" Secure Gallery
 
-```js
-exports.hookType = 'origin-request';
+We’ve bundled a complete, interactive sample to show you the power of **CloudFrontize**. It protects a premium dog photography gallery using a `viewer-request` authentication gate.
+
+### Launch the Secure Demo
+Clone the GitHub repo 
+```shell
+git clone https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge.git
+```
+Then run 
+```bash
+cloudfrontize ./www -e ./samples/medium/lambda-edge-authorization.js -d -C
+```
+* The `www` folder contains the sample files (html, js, css, etc.)
+* The `lambda-edge-authorization.js` contains the lambda@edge logic
+* The `-d` option enables debug messages while `-C` enables CORS
+* Default port is 3000, you can now open your browser at http://localhost:3000/
+
+### The Sample Logic (`lambda-edge-authorization.js`)
+
+```javascript
+'use strict';
+
+/**
+ * Lambda@Edge Example: Basic Authentication (viewer-request)
+ */
+
+// MANDATORY: Tells CloudFrontize which trigger point to simulate
+exports.hookType = 'viewer-request';
+
 exports.handler = (event, context, callback) => {
     const request = event.Records[0].cf.request;
-    const ae = request.headers['accept-encoding']?.[0]?.value || '';
+    const headers = request.headers;
 
-    // If JS/CSS, try to serve a pre-compressed `.br` version
-    if (request.uri.match(/\.(js|css)$/)) {
-        if (ae.includes('br')) request.uri += '.br';
-        else if (ae.includes('gzip')) request.uri += '.gz';
+    // Credentials for demo purposes
+    const user = "admin";
+    const password = "pass";
+
+    const authString = "Basic " + Buffer.from(user + ":" + password).toString("base64");
+
+    if (
+        typeof headers.authorization === "undefined" ||
+        headers.authorization[0].value !== authString
+    ) {
+        const response = {
+            status: "401",
+            statusDescription: "Unauthorized",
+            body: "Unauthorized",
+            headers: {
+                "www-authenticate": [{
+                    key: "WWW-Authenticate",
+                    value: 'Basic realm="Protected Area"'
+                }],
+            },
+        };
+
+        callback(null, response);
+        return;
     }
+
     callback(null, request);
 };
 ```
-*(CloudFrontize will automatically fall back to the original file if the `.br`/`.gz` files don't exist locally!)*
-
-#### 2. Viewer Response (Security Headers)
-
-```js
-exports.hookType = 'viewer-response';
-exports.handler = (event, context, callback) => {
-    const response = event.Records[0].cf.response;
-    response.headers['strict-transport-security'] = [{ key: 'Strict-Transport-Security', value: 'max-age=63072000' }];
-    response.headers['x-frame-options'] = [{ key: 'X-Frame-Options', value: 'DENY' }];
-    callback(null, response);
-};
-```
-
-*(See `src/edge/examples/` in the repository for full examples of all 4 hook types).*
 
 ---
 
-## Hot Reload Environment
+### 🛡️ Engineered for Fidelity 
 
-CloudFrontize watches your loaded `--edge` module. When you save changes to your Lambda file, it instantly reloads the module memory. You can tweak your Lambda logic and just refresh the browser — no server restarts required!
+Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror the high-stakes environment of a live AWS PoP (Point of Presence).
+
+* **⚡ Native Async/Await Support:** Whether your middleware is a simple redirect or a complex, asynchronous database lookup, CloudFrontize handles `async` handlers and Promises with the same grace as the live Lambda@Edge runtime.
+* **🧩 Multi-Hook Testing:** Pass a directory to `--edge` and CloudFrontize will automatically mount every valid Lambda it finds. Orchestrate your **Viewer Request**, **Origin Request**, and **Response** hooks in one unified local environment.
+* **🚫 Strict Header Validation:** Identify "Read-only" or "Forbidden" headers in real-time. We flag the illegal mutations that trigger 502 errors *before* you even think about deploying.
+* **🎭 Mocked Context & Events:** We provide a high-fidelity `event` and `context` object, ensuring your logging, metrics, and custom error-handling tools work exactly as they would in production.
+
+---
 
 ## License
 
 MIT © Felipe Carrillo
+
+
+---
+# Donations & Sponsoring
+[<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" name="buy-me-a-coffee" alt="Buy Me A Coffee" width="180">](https://buymeacoffee.com/felipecarrillo100)
+
+Creating and maintaining open-source libraries is a passion of mine. If you find this `cloudfrontize` useful and it saves you time, please consider supporting its development. Your contributions help keep the project active and motivated!
+
+Every bit of support—whether it's sponsoring on GitHub, a coffee, a star, or a shout-out, is deeply appreciated. Thank you for being part of the community!
+
+
