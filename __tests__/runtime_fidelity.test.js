@@ -16,7 +16,7 @@ const path = require('path');
 describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
     // Resolve absolute path to fixtures directory
     const rootDir = path.resolve(__dirname, '..');
-    const baseDir = path.join(rootDir, 'tests_fixtures', 'fidelity_root');
+    const baseDir = path.join(rootDir, 'tmp_test', 'fidelity_root');
 
     beforeAll(() => {
         // Cleanup and recreate fixtures root

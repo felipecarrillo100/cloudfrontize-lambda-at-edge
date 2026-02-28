@@ -8,7 +8,7 @@ const { startServer } = require('../src/index');
 const { EdgeRunner } = require('../src/edgeRunner');
 
 // TMP_DIR: Ensure we use an absolute path that is safe for the OS
-const TMP_DIR = path.resolve(__dirname, '..', 'tests_integration', 'tmp_e2e_public');
+const TMP_DIR = path.resolve(__dirname, '..', 'tmp_test', 'e2e_public');
 let server;
 
 /**

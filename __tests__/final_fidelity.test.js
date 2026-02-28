@@ -11,7 +11,7 @@ const fs = require('fs');
 describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
     let runner;
     let server;
-    const mockDir = path.join(__dirname, '..','test_fidelity_tmp');
+    const mockDir = path.resolve(__dirname, '..', 'tmp_test', 'fidelity');
     const port = 9095;
 
     beforeAll(() => {

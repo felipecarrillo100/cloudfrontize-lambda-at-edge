@@ -5,7 +5,7 @@ module.exports = {
     // Ensure Jest doesn't try to run the generated Lambda files as tests
     testPathIgnorePatterns: [
         '/node_modules/',
-        '/tests_fixtures/',
+        '/tmp_test/',
         '/dist/'
     ],
 
