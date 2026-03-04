@@ -19,13 +19,21 @@ class EdgeRunner {
             'viewer-response': []
         };
 
-        this.envVars = {};
+        this.envVars = {
+            'AWS_REGION': 'us-east-1',
+            'AWS_DEFAULT_REGION': 'us-east-1',
+            'AWS_EXECUTION_ENV': 'AWS_Lambda_nodejs20.x',
+            'AWS_LAMBDA_FUNCTION_NAME': 'cloudfrontize-emulator',
+            'AWS_LAMBDA_FUNCTION_VERSION': '1',
+            'AWS_LAMBDA_FUNCTION_MEMORY_SIZE': '128'
+        };
         this.bakeVars = {};
         this.watchers = [];
         this.whitelist = [
             'AWS_REGION', 'AWS_DEFAULT_REGION', 'AWS_LAMBDA_FUNCTION_NAME',
             'AWS_LAMBDA_FUNCTION_VERSION', 'AWS_LAMBDA_FUNCTION_MEMORY_SIZE',
             'AWS_LAMBDA_LOG_GROUP_NAME', 'AWS_LAMBDA_LOG_STREAM_NAME',
+            'AWS_EXECUTION_ENV', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN',
             'NODE_OPTIONS', 'TZ', 'LANG', 'PATH'
         ];
 
