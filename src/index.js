@@ -49,9 +49,23 @@ function startServer(options) {
 
                 if (hookResult) {
                     if (hookResult._isResponse) {
+                        const body = hookResult.body || '';
+                        const bodySize = Buffer.byteLength(body);
+
+                        if (bodySize > 1024 * 1024) {
+                            const msg = `[CloudFrontize] Generated response exceeds 1MB limit (Current: ${(bodySize / (1024 * 1024)).toFixed(2)}MB)`;
+                            if (options.strict) {
+                                console.error(`🛑 ${msg} - AWS would reject this response.`);
+                                res.writeHead(502, { 'Content-Type': 'text/plain' });
+                                res.end('Bad Gateway (Generated response too large)');
+                                return;
+                            }
+                            console.warn(`⚠️  ${msg}. This is allowed locally but AWS will reject it.`);
+                        }
+
                         const status = parseInt(hookResult.status) || 200;
                         res.writeHead(status, hookResult.headers);
-                        res.end(hookResult.body || '');
+                        res.end(body);
                         return;
                     }
 

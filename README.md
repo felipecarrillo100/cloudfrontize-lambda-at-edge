@@ -30,7 +30,7 @@ The CloudFront/Lambda@Edge development loop is notoriously painful. Propagation 
 * **Debug directly to the console:** Stop hunting for logs in hidden CloudWatch streams across random regions. See your console.log outputs and execution errors live **in your terminal**. 
 * **Production Fidelity:** Emulates in detail CloudFront-specific features & quirks, like the **10MB auto-compression limit**, header blacklisting, and URI normalization.
 * **RequestBody Support:** Access the request payload in your hooks for webhook validation or body-based routing.
-* **The "Safety Net":** Catch forbidden header mutations or invalid response structures locally. Use `--strict` to auto-fail requests that violate AWS limits.
+* **The "Safety Net":** Catch forbidden header mutations or invalid response structures locally. Use `--strict` to auto-fail requests that violate AWS limits (40KB body, 1MB generated response).
 
 
 ---
@@ -74,7 +74,7 @@ npx cloudfrontize-lambda-at-edge ./folder --edge ./lambda-at-age-logic.js
 | **`-u, --no-compression`** | Disable automatic on-the-fly compression                           | `off` |
 | **`--no-etag`** | Disable ETag headers                                               | `off` |
 | **`-L, --no-request-logging`** | Mute startup logs                                                  | `off` |
-| **`--strict`** | Enforce strict CloudFront limits (40KB body, forbidden headers) | `off` |
+| **`--strict`** | Enforce strict CloudFront limits (40KB body, 1MB response, headers) | `off` |
 
 ---
 
@@ -164,7 +164,7 @@ Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror t
 * **⚡ Native Async/Await Support:** Whether your middleware is a simple redirect or a complex, asynchronous database lookup, CloudFrontize handles `async` handlers and Promises with the same grace as the live Lambda@Edge runtime.
 * **🧩 Multi-Hook Testing:** Pass a directory to `--edge` and CloudFrontize will automatically mount every valid Lambda it finds. Orchestrate your **Viewer Request**, **Origin Request**, and **Response** hooks in one unified local environment.
 * **📦 RequestBody Access:** Use `event.Records[0].cf.request.body` to access base64 encoded payloads. We support the standard AWS buffering logic.
-* **🚫 Strict Header & Body Validation:** Use `--strict` to identify "Read-only" or "Forbidden" headers and the **40KB viewer-request body limit** in real-time. We trigger **502 Bad Gateway** errors locally for the same illegal mutations that fail in production.
+* **🚫 Strict Header & Body Validation:** Use `--strict` to identify "Read-only" or "Forbidden" headers, the **40KB viewer-request body limit**, and the **1MB generated response limit** in real-time. We trigger **502 Bad Gateway** errors locally for the same illegal mutations that fail in production.
 * **🎭 Mocked Context & Events:** We provide a high-fidelity `event` and `context` object, ensuring your logging, metrics, and custom error-handling tools work exactly as they would in production.
 
 ---
