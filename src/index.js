@@ -5,6 +5,7 @@ const handler = require('serve-handler');
 const compression = require('compression');
 const fs = require('fs');
 const path = require('path');
+const { AWS_LIMITS } = require('./constants');
 
 function startServer(options) {
     const { edgeRunner } = options;
@@ -32,8 +33,8 @@ function startServer(options) {
 
         // === 1. REQUEST HOOKS ===
         if (edgeRunner) {
-            // 40KB Limit Check (Fidelity)
-            if (bodyBuffer && bodyBuffer.length > 40 * 1024) {
+            // Body Limit Check (Fidelity)
+            if (bodyBuffer && bodyBuffer.length > AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES) {
                 const msg = `[CloudFrontize] Body exceeds 40KB limit (Current: ${(bodyBuffer.length / 1024).toFixed(1)}KB)`;
                 if (options.strict) {
                     console.error(`🛑 ${msg} - AWS would reject this request via viewer-request.`);
@@ -52,7 +53,7 @@ function startServer(options) {
                         const body = hookResult.body || '';
                         const bodySize = Buffer.byteLength(body);
 
-                        if (bodySize > 1024 * 1024) {
+                        if (bodySize > AWS_LIMITS.GENERATED_RESPONSE_BODY_BYTES) {
                             const msg = `[CloudFrontize] Generated response exceeds 1MB limit (Current: ${(bodySize / (1024 * 1024)).toFixed(2)}MB)`;
                             if (options.strict) {
                                 console.error(`🛑 ${msg} - AWS would reject this response.`);
@@ -150,8 +151,8 @@ function startServer(options) {
 
         if (shouldCompress && fs.existsSync(fullPath) && fs.lstatSync(fullPath).isFile()) {
             const stats = fs.statSync(fullPath);
-            // Skip compression for files > 10MB (CloudFront Fidelity)
-            if (stats.size > 10 * 1024 * 1024) shouldCompress = false;
+            // Skip compression for large files (CloudFront Fidelity)
+            if (stats.size > AWS_LIMITS.COMPRESSION_BYPASS_BYTES) shouldCompress = false;
         }
 
         if (shouldCompress) {

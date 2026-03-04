@@ -5,6 +5,8 @@ const path = require('path');
 const vm = require('vm');
 const dotenv = require('dotenv');
 
+const { AWS_RUNTIME, AWS_HEADERS, AWS_LIMITS } = require('./constants');
+
 class EdgeRunner {
     constructor(edgePath, options = {}) {
         this.edgePath = path.resolve(edgePath);
@@ -20,23 +22,10 @@ class EdgeRunner {
             'viewer-response': []
         };
 
-        this.envVars = {
-            'AWS_REGION': 'us-east-1',
-            'AWS_DEFAULT_REGION': 'us-east-1',
-            'AWS_EXECUTION_ENV': 'AWS_Lambda_nodejs20.x',
-            'AWS_LAMBDA_FUNCTION_NAME': 'cloudfrontize-emulator',
-            'AWS_LAMBDA_FUNCTION_VERSION': '1',
-            'AWS_LAMBDA_FUNCTION_MEMORY_SIZE': '128'
-        };
+        this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV };
         this.bakeVars = {};
         this.watchers = [];
-        this.whitelist = [
-            'AWS_REGION', 'AWS_DEFAULT_REGION', 'AWS_LAMBDA_FUNCTION_NAME',
-            'AWS_LAMBDA_FUNCTION_VERSION', 'AWS_LAMBDA_FUNCTION_MEMORY_SIZE',
-            'AWS_LAMBDA_LOG_GROUP_NAME', 'AWS_LAMBDA_LOG_STREAM_NAME',
-            'AWS_EXECUTION_ENV', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN',
-            'NODE_OPTIONS', 'TZ', 'LANG', 'PATH'
-        ];
+        this.whitelist = [...AWS_RUNTIME.ENV_WHITELIST];
 
         this._loadFidelityFiles();
         this._load();
@@ -80,8 +69,7 @@ class EdgeRunner {
             URL, URLSearchParams, TextEncoder, TextDecoder,
             process: { env: { ...this.envVars }, nextTick: process.nextTick, version: process.version },
             require: (id) => {
-                const forbidden = ['fs', 'child_process', 'os'];
-                if (forbidden.includes(id)) throw new Error(`Forbidden: ${id}`);
+                if (AWS_RUNTIME.FORBIDDEN_MODULES.includes(id)) throw new Error(`Forbidden: ${id}`);
                 return id.startsWith('.') ? require(path.resolve(path.dirname(filePath), id)) : require(id);
             },
             __dirname: path.dirname(filePath),
@@ -185,10 +173,10 @@ class EdgeRunner {
             const cloned = this._deepClone(record);
             const cf = type.includes('response') ? { request: cloned.request, response: cloned.response } : { request: cloned };
             const event = { Records: [{ cf }] };
-            const context = { functionName: 'edgeRunner', getRemainingTimeInMillis: () => 3000 };
+            const context = { functionName: 'edgeRunner', getRemainingTimeInMillis: () => AWS_LIMITS.EXECUTION_TIMEOUT_MS };
 
-            // Enforce 3s execution limit
-            const timer = setTimeout(() => resolve(null), 3000);
+            // Enforce execution limit
+            const timer = setTimeout(() => resolve(null), AWS_LIMITS.EXECUTION_TIMEOUT_MS);
 
             try {
                 const result = handler(event, context, (err, res) => {
@@ -246,16 +234,12 @@ class EdgeRunner {
     _validateBlacklistedHeaders(original, final, hook) {
         const isResponseHook = hook === 'origin-response' || hook === 'viewer-response';
 
-        // AWS Forbidden/Read-only headers (Common for Request & Response)
-        const blacklist = [
-            'connection', 'expect', 'keep-alive', 'proxy-authenticate',
-            'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade',
-            'via'
-        ];
+        // AWS Forbidden/Read-only headers
+        const blacklist = [...AWS_HEADERS.FORBIDDEN];
 
         // Headers that are forbidden ONLY in Request hooks
         if (!isResponseHook) {
-            blacklist.push('host');
+            blacklist.push(...AWS_HEADERS.REQUEST_ONLY_FORBIDDEN);
         }
 
         blacklist.forEach(key => {
