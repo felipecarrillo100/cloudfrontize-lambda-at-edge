@@ -11,7 +11,7 @@ const program = new Command();
 program
     .name('cloudfrontize')
     .description('Static server with CloudFront Fidelity: Environments & Variable Baking')
-    .version('1.1.0')
+    .version('1.0.0')
     .argument('[directory]', 'directory to serve', '.')
     .option('-p, --port <number>', 'port to listen on', '3000')
     .option('-l, --listen <uri>', 'listen URI', '3000')

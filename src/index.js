@@ -65,7 +65,12 @@ function startServer(options) {
                         }
 
                         const status = parseInt(hookResult.status) || 200;
-                        res.writeHead(status, hookResult.headers);
+                        if (hookResult.headers) {
+                            for (const [k, values] of Object.entries(hookResult.headers)) {
+                                if (values && values[0]) res.setHeader(k, values[0].value);
+                            }
+                        }
+                        res.writeHead(status);
                         res.end(body);
                         return;
                     }
@@ -180,7 +185,9 @@ function startServer(options) {
         if (!options.noRequestLogging) {
             console.log(`\n☁️  Cloudfrontize running on http://localhost:${options.port}`);
             if (edgeRunner) {
-                const hooks = Object.keys(edgeRunner.modules).join(', ');
+                const hooks = Object.keys(edgeRunner.modules)
+                    .filter(k => edgeRunner.modules[k].length > 0)
+                    .join(', ');
                 console.log(`⚡ Edge modules loaded: ${hooks || 'none'}`);
             }
         }

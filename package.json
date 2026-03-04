@@ -8,24 +8,24 @@
     "cloudfrontize": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "node scripts/build.js",
     "prepublishOnly": "npm run build",
     "test": "jest --forceExit",
-    "test:local": "node ./bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js -l 5174",
-    "test:dist": "node ./dist/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js -l 5174"
+    "test:local": "node ./bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js",
+    "test:dist": "node ./dist/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js"
   },
-  "dependencies": {
+  "devDependencies": {
     "commander": "^11.0.0",
     "compression": "^1.7.4",
     "dotenv": "^17.3.1",
-    "serve-handler": "^6.1.6"
-  },
-  "devDependencies": {
     "esbuild": "^0.27.3",
-    "jest": "^30.2.0"
+    "jest": "^30.2.0",
+    "serve-handler": "^6.1.6"
   },
   "keywords": [
     "cloudfront",
@@ -33,12 +33,18 @@
     "lambda-at-edge",
     "compression",
     "brotli",
-    "static-server"
+    "static-server",
+    "emulator",
+    "local-development"
   ],
   "author": "Felipe Carrillo",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/felipecarrillo/cloudfrontize-lambda-at-edge.git"
-  }
+    "url": "https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge/issues"
+  },
+  "homepage": "https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge#readme"
 }
