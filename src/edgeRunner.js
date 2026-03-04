@@ -244,7 +244,20 @@ class EdgeRunner {
     }
 
     _validateBlacklistedHeaders(original, final, hook) {
-        const blacklist = ['host', 'via', 'connection'];
+        const isResponseHook = hook === 'origin-response' || hook === 'viewer-response';
+
+        // AWS Forbidden/Read-only headers (Common for Request & Response)
+        const blacklist = [
+            'connection', 'expect', 'keep-alive', 'proxy-authenticate',
+            'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade',
+            'via'
+        ];
+
+        // Headers that are forbidden ONLY in Request hooks
+        if (!isResponseHook) {
+            blacklist.push('host');
+        }
+
         blacklist.forEach(key => {
             const getVal = (headers) => {
                 if (!headers) return null;

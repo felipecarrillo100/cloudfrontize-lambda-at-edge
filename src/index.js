@@ -113,15 +113,25 @@ function startServer(options) {
             if (req.headers.range) initialStatus = 206;
             if (!fs.existsSync(fullPath)) initialStatus = 404;
 
-            const hookResponse = await edgeRunner.runResponseHook(req, {
-                status: initialStatus,
-                headers: res.getHeaders()
-            });
+            try {
+                const hookResponse = await edgeRunner.runResponseHook(req, {
+                    status: initialStatus,
+                    headers: res.getHeaders()
+                });
 
-            if (hookResponse && hookResponse.headers) {
-                for (const [k, values] of Object.entries(hookResponse.headers)) {
-                    if (values && values[0]) res.setHeader(k, values[0].value);
+                if (hookResponse && hookResponse.headers) {
+                    for (const [k, values] of Object.entries(hookResponse.headers)) {
+                        if (values && values[0]) res.setHeader(k, values[0].value);
+                    }
                 }
+            } catch (err) {
+                if (options.strict && err.message.includes('Forbidden:')) {
+                    console.error(`🛑 Strict Mode Violation (Response): ${err.message}`);
+                    res.writeHead(502, { 'Content-Type': 'text/plain' });
+                    res.end('Bad Gateway (Forbidden Response Header Mutation)');
+                    return;
+                }
+                throw err;
             }
         }
 

@@ -1,4 +1,6 @@
 const { EdgeRunner } = require('../src/edgeRunner');
+const path = require('path');
+const fs = require('fs');
 
 /**
  * EDGE RUNNER EMULATION FIDELITY
@@ -55,14 +57,40 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
     });
 
     test('4. Emits warnings when mutating AWS blacklisted headers', async () => {
-        const runner = new EdgeRunner('./samples/edgecases/blacklistedHeaderMutator.js');
-        runners.push(runner);
+        // Test Host (Request-only forbidden)
+        const reqRunner = new EdgeRunner('./samples/edgecases/queryStringRewriter.js'); // Use any request-compatible handler
+        runners.push(reqRunner);
+        // Manually inject a mutation that triggers a warning if possible, 
+        // but better yet, use a dedicated mutator sample.
 
-        await runner.runResponseHook({ headers: {}, url: '/' }, { status: 200, headers: {} });
+        const resRunner = new EdgeRunner('./samples/edgecases/blacklistedHeaderMutator.js');
+        runners.push(resRunner);
+
+        await resRunner.runResponseHook({ headers: {}, url: '/' }, { status: 200, headers: {} });
 
         // ✅ Spies track the call even though the output is hidden from the terminal
-        expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('host'));
+        // Note: host is now request-only, via is common.
         expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('via'));
+
+        // Add a request-specific check
+        const mutatorCode = `
+            exports.hookType = 'viewer-request';
+            exports.handler = async (event) => {
+                const request = event.Records[0].cf.request;
+                request.headers['host'] = [{ key: 'Host', value: 'forbidden.com' }];
+                return request;
+            };
+        `;
+        const tempPath = path.join(__dirname, '..', 'tmp_test', 'runner_host_test.js');
+        if (!fs.existsSync(path.dirname(tempPath))) fs.mkdirSync(path.dirname(tempPath), { recursive: true });
+        fs.writeFileSync(tempPath, mutatorCode);
+
+        const hostRunner = new EdgeRunner(tempPath);
+        runners.push(hostRunner);
+        await hostRunner.runRequestHook({ headers: {}, url: '/' });
+        expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('host'));
+
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     });
 
     test('5. Multi-hook directories execute sequentially without collision', async () => {

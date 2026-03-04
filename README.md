@@ -164,7 +164,7 @@ Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror t
 * **⚡ Native Async/Await Support:** Whether your middleware is a simple redirect or a complex, asynchronous database lookup, CloudFrontize handles `async` handlers and Promises with the same grace as the live Lambda@Edge runtime.
 * **🧩 Multi-Hook Testing:** Pass a directory to `--edge` and CloudFrontize will automatically mount every valid Lambda it finds. Orchestrate your **Viewer Request**, **Origin Request**, and **Response** hooks in one unified local environment.
 * **📦 RequestBody Access:** Use `event.Records[0].cf.request.body` to access base64 encoded payloads. We support the standard AWS buffering logic.
-* **🚫 Strict Header & Body Validation:** Use `--strict` to identify "Read-only" or "Forbidden" headers, the **40KB viewer-request body limit**, and the **1MB generated response limit** in real-time. We trigger **502 Bad Gateway** errors locally for the same illegal mutations that fail in production.
+* **🚫 Strict Header & Body Validation:** Use `--strict` to identify "Read-only" or "Forbidden" headers for **both request and response hooks**, as well as the **40KB viewer-request body limit** and the **1MB generated response limit** in real-time. We trigger **502 Bad Gateway** errors locally for the same illegal mutations that fail in production.
 * **🎭 Mocked Context & Events:** We provide a high-fidelity `event` and `context` object, ensuring your logging, metrics, and custom error-handling tools work exactly as they would in production.
 
 ---
