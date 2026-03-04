@@ -32,6 +32,23 @@ The CloudFront/Lambda@Edge development loop is notoriously painful. Propagation 
 * **RequestBody Support:** Access the request payload in your hooks for webhook validation or body-based routing.
 * **The "Safety Net":** Catch forbidden header mutations or invalid response structures locally. Use `--strict` to auto-fail requests that violate AWS limits (40KB body, 1MB generated response).
 
+---
+
+## ⚖️ Value Proposition & Market Comparison
+
+While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda functions, they often fall short when it comes to the specific, high-stakes constraints of the **AWS Edge**.
+
+| Feature | CloudFrontize | Other Local Simulators |
+| --- | --- | --- |
+| **Edge Fidelity** | 🎯 Built specifically for the 4 CloudFront triggers. | ⚠️ Usually limited to generic API Gateway events. |
+| **Limits Enforcement** | ✅ Enforces 40KB body & 1MB response limits. | ❌ Generally ignores Edge-specific size limits. |
+| **Header Validation** | ✅ Warns/Fails on forbidden header mutations. | ❌ Allows illegal header modifications. |
+| **Config Overhead** | 🚀 **Zero.** No YAML or JSON config needed. | 📝 Requires complex template/config files. |
+| **Dev Loop** | ⚡ Instant hot-reloading. | 🐢 Slow warm-up times or missing hot-reload. |
+| **Variable Baking** | ✅ Production-ready build step included. | ❌ Manual build scripts required. |
+
+**CloudFrontize** is not just a runner; it's a **Linter at the Edge**, ensuring your code is valid *before* the 15-minute propagation wait.
+
 
 ---
 
@@ -43,25 +60,37 @@ Get up and running in seconds. No complex AWS IAM roles, no stack traces—just 
 ```bash
 npm install -g cloudfrontize-lambda-at-edge
 ```
-Once installed, you can rule the Edge from any directory by simply typing `cloudfrontize`.
+Once installed, you can rule the Edge from any directory by simply typing `cloudfrontize`
 
 Point it at your static files  folder (`./www`, `./dist` or `./public`) and point to your Lambda@Edge `.js` file. CloudFrontize handles the rest.
 
 ```bash
 cloudfrontize ./folder --edge ./lambda-at-age-logic.js
 ```
-
-### Or **On-the-fly:**
-Noting to install
+OR
 ```bash
 npx cloudfrontize-lambda-at-edge ./folder --edge ./lambda-at-age-logic.js
 ```
 
 ---
 
+## 🎓 CloudFrontize Academy (Tutorial)
+
+New to Lambda@Edge? We've built a comprehensive, hands-on tutorial to take you from **Newbie to Production Pro**.
+
+Our **[CloudFrontize Academy](./tutorial/README.md)** includes 10 thematic exercises covering:
+* **Module 1: Foundations** (Security Headers, Redirects, Normalization)
+* **Module 2: Origin Intelligence** (A/B Testing, Geo-Localization, Header Cleaning)
+* **Module 3: Edge Computing** (Custom Auth, Maintenance Pages, Payload Inspection)
+* **Module 4: Production Workflows** (Variable Baking & Deployment)
+
+Each exercise comes with a **Business Scenario**, **Starter Template**, and **Full Solution**.
+
+---
+
 ## 🛠️ CLI Options & Configuration
 
-`cloudfrontize` is designed to be a drop-in replacement for `serve`, but with "Edge Superpowers."
+`cloudfrontize` is designed to be a drop-in replacement for the popular [serve](https://www.google.com/search?q=%5Bhttps://www.npmjs.com/package/serve%5D(https://www.npmjs.com/package/serve)), we all know and love, but with "Edge Superpowers!"
 
 | Flag | Description                                                        | Default |
 | --- |--------------------------------------------------------------------| --- |
