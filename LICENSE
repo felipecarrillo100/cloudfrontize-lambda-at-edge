@@ -1,0 +1,36 @@
+CloudFrontize Non-Commercial & Business License
+Copyright (c) 2026 Felipe Carrillo
+
+1. INDIVIDUAL & EDUCATIONAL USE
+Permission is hereby granted, free of charge, to any individual, student,
+or hobbyist obtaining a copy of this software to use, study, and modify
+the software for non-commercial, personal, or educational purposes.
+
+2. COMMERCIAL & BUSINESS USE
+Use of this software by a for-profit entity, or for work performed on behalf
+of a for-profit entity, requires a valid Commercial License. Business users
+and corporate entities may evaluate the software for a period of 30 days,
+after which a commercial license must be obtained by sponsoring the author
+at the appropriate "Corporate/Business Tier" via:
+https://github.com/sponsors/felipecarrillo100
+
+3. REDISTRIBUTION
+Redistribution of the software, with or without modification, must include
+this license file and the original copyright notice in all copies or
+substantial portions of the Software.
+
+4. DISCLAIMER OF WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+5. LIMITATION OF LIABILITY
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+AS THIS IS A SIMULATION TOOL, THE USER ACKNOWLEDGES THAT ACTUAL AWS
+CLOUDFRONT/LAMBDA@EDGE BEHAVIOR MAY VARY BASED ON AWS INFRASTRUCTURE UPDATES.
+FINAL VALIDATION ON LIVE AWS INFRASTRUCTURE IS THE SOLE RESPONSIBILITY
+OF THE USER.

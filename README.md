@@ -198,10 +198,26 @@ Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror t
 
 ---
 
-## License
 
-MIT © Felipe Carrillo
+### License
 
+**CloudFrontize** is licensed under the **[PolyForm Noncommercial 1.0.0](https://www.google.com/search?q=https://polyformproject.org/licenses/noncommercial/1.0.0/)**. For the full legal text and specific terms, please refer to the [LICENSE](https://www.google.com/search?q=./LICENSE) file in this package.
+
+
+* **✅ Free for Individuals & Education:** 100% free for personal projects, open-source contributions, students, and researchers. This includes full access to the **CloudFrontize Academy**.
+* **💼 Requires a Commercial License:** Use by for-profit organizations, or for work performed on behalf of a for-profit entity, requires a paid Commercial License.
+* **⏳ 30-Day Business Trial:** We offer a one-month free evaluation period for professional teams. Integrate CloudFrontize into your workflow, experience the "Zero-Wait" deployment cycle, and measure your team's productivity gains before committing.
+
+
+Maintaining high-fidelity AWS emulation takes significant time. If your company is saving thousands of dollars in "developer-wait-time" by using this tool, please support its continued development.
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤️-ff69b4?style=for-the-badge&logo=github)](https://github.com/sponsors/felipecarrillo100)
+---
+## ⚖️ Legal & Disclaimer
+
+**CloudFrontize** is a local simulation tool. While it is designed to mirror AWS CloudFront and Lambda@Edge behavior as closely as possible, it is not an official AWS product.
+
+**THE SOFTWARE IS PROVIDED "AS IS"**, WITHOUT WARRANTY OF ANY KIND. Testing on CloudFrontize does not guarantee success on live AWS infrastructure. The author is not liable for any production downtime, data loss, or financial damages resulting from the use of this tool. Always validate your logic in an AWS staging environment before a full production rollout.
 
 ---
 # Donations & Sponsoring
@@ -211,4 +227,9 @@ Creating and maintaining open-source libraries is a passion of mine. If you find
 
 Every bit of support—whether it's sponsoring on GitHub, a coffee, a star, or a shout-out, is deeply appreciated. Thank you for being part of the community!
 
+### 🏢 Corporate & Business Use
+Does your team use CloudFrontize to speed up production workflows?
+Please support the project by selecting the **Corporate Tier** on [GitHub Sponsors](https://github.com/sponsors/felipecarrillo100).
+* **Standard Business License:** $25/month per team.
+* **Enterprise:** Contact me for a one-time perpetual site license.
 

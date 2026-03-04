@@ -38,7 +38,7 @@
     "local-development"
   ],
   "author": "Felipe Carrillo",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE FILE",
   "repository": {
     "type": "git",
     "url": "https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge.git"
@@ -46,5 +46,8 @@
   "bugs": {
     "url": "https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge/issues"
   },
-  "homepage": "https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge#readme"
+  "homepage": "https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  }
 }
