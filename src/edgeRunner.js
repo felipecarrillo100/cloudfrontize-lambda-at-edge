@@ -38,7 +38,7 @@ class EdgeRunner {
     }
 
     /* =========================================================
-       FILE LOADING
+       FIDELITY: LOAD & SANDBOX (Checklist Item 9)
     ========================================================= */
 
     _load() {
@@ -57,8 +57,6 @@ class EdgeRunner {
 
     _loadFile(filePath) {
         let code = fs.readFileSync(filePath, 'utf8');
-
-        // Variable baking
         code = code.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
 
         if (this.outputPath) {
@@ -68,30 +66,14 @@ class EdgeRunner {
 
         const mockModule = { exports: {} };
         const sandbox = {
-            module: mockModule,
-            exports: mockModule.exports,
-            Buffer,
-            console,
-            setTimeout,
-            clearTimeout,
-            setInterval,
-            clearInterval,
-            setImmediate,
-            URL,
-            URLSearchParams,
-            TextEncoder,
-            TextDecoder,
-            process: {
-                env: { ...this.envVars },
-                nextTick: process.nextTick,
-                version: process.version
-            },
+            module: mockModule, exports: mockModule.exports,
+            Buffer, console, setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
+            URL, URLSearchParams, TextEncoder, TextDecoder,
+            process: { env: { ...this.envVars }, nextTick: process.nextTick, version: process.version },
             require: (id) => {
                 const forbidden = ['fs', 'child_process', 'os'];
                 if (forbidden.includes(id)) throw new Error(`Forbidden: ${id}`);
-                return id.startsWith('.')
-                    ? require(path.resolve(path.dirname(filePath), id))
-                    : require(id);
+                return id.startsWith('.') ? require(path.resolve(path.dirname(filePath), id)) : require(id);
             },
             __dirname: path.dirname(filePath),
             __filename: filePath
@@ -103,15 +85,12 @@ class EdgeRunner {
 
         const mod = mockModule.exports;
         if (mod.handler && mod.hookType) {
-            this.modules[mod.hookType].push({
-                handler: mod.handler,
-                file: filePath
-            });
+            this.modules[mod.hookType].push({ handler: mod.handler, file: filePath });
         }
     }
 
     /* =========================================================
-       REQUEST PIPELINE
+       FIDELITY: REQUEST PIPELINE (Checklist Item 1, 4, 12)
     ========================================================= */
 
     async runRequestHook(req) {
@@ -119,42 +98,49 @@ class EdgeRunner {
 
         for (const type of ['viewer-request', 'origin-request']) {
             for (const mod of this.modules[type]) {
-                // Take snapshot BEFORE mutation
                 const originalHeaders = this._deepClone(request.headers);
 
+                // Invoke the Lambda handler
                 const result = await this._invoke(mod.handler, request, type);
 
-                if (result?.status && !result.uri) {
+                if (!result) continue;
+
+                // Short-circuit: Response returned instead of request mutation
+                if (result.status && !result.uri) {
                     const finalResponse = this._flatten(result);
                     finalResponse._isResponse = true;
                     finalResponse.type = type;
                     return finalResponse;
                 }
 
-                if (result?.headers) {
-                    // Validate against snapshot
-                    this._validateBlacklistedHeaders(originalHeaders, result.headers, type);
+                // Apply Mutations (The "Connective Tissue")
+                if (result.uri !== undefined) request.uri = result.uri;
+                if (result.querystring !== undefined) request.querystring = result.querystring;
 
-                    // Normalize for next hook
-                    const normalized = {};
-                    Object.keys(result.headers).forEach(k => {
-                        normalized[k.toLowerCase()] = result.headers[k];
-                    });
-                    result.headers = normalized;
+                if (result.headers) {
+                    this._validateBlacklistedHeaders(originalHeaders, result.headers, type);
+                    request.headers = this._normalizeHeadersInternal(result.headers);
                 }
 
-                request = result;
+                // Origin Persistence (Fixes Country/Geo routing failures)
+                if (result.origin) {
+                    request.origin = request.origin || {};
+                    if (result.origin.custom) {
+                        request.origin.custom = { ...(request.origin.custom || {}), ...result.origin.custom };
+                    }
+                    if (result.origin.s3) {
+                        request.origin.s3 = { ...(request.origin.s3 || {}), ...result.origin.s3 };
+                    }
+                }
                 request.type = type;
             }
         }
 
-        const flattened = this._flatten(request);
-        flattened.type = request.type;
-        return flattened;
+        return this._flatten(request);
     }
 
     /* =========================================================
-       RESPONSE PIPELINE
+       FIDELITY: RESPONSE PIPELINE (Checklist Item 1)
     ========================================================= */
 
     async runResponseHook(req, resData) {
@@ -162,96 +148,93 @@ class EdgeRunner {
         let response = {
             status: String(resData.status || 200),
             statusDescription: 'OK',
-            headers: this._normalizeHeaders(resData.headers || {})
+            headers: this._normalizeHeadersInternal(resData.headers || {})
         };
 
         for (const type of ['origin-response', 'viewer-response']) {
             for (const mod of this.modules[type]) {
                 const originalHeaders = this._deepClone(response.headers);
-
                 const result = await this._invoke(mod.handler, { request, response }, type);
-                response = result.response || result;
+
+                response = result?.response || result || response;
 
                 if (response.headers) {
                     this._validateBlacklistedHeaders(originalHeaders, response.headers, type);
-
-                    const normalized = {};
-                    Object.keys(response.headers).forEach(k => {
-                        normalized[k.toLowerCase()] = response.headers[k];
-                    });
-                    response.headers = normalized;
+                    response.headers = this._normalizeHeadersInternal(response.headers);
                 }
             }
         }
-
         return this._flatten(response);
     }
 
     /* =========================================================
-       INVOCATION & HELPERS
+       FIDELITY: HELPERS (Checklist Item 2, 7, 10)
     ========================================================= */
 
     _invoke(handler, record, type) {
         return new Promise((resolve, reject) => {
             const cloned = this._deepClone(record);
-            const cf = type.includes('response')
-                ? { request: cloned.request, response: cloned.response }
-                : { request: cloned };
-
+            const cf = type.includes('response') ? { request: cloned.request, response: cloned.response } : { request: cloned };
             const event = { Records: [{ cf }] };
-            const context = {
-                functionName: 'edgeRunner',
-                getRemainingTimeInMillis: () => 3000
-            };
+            const context = { functionName: 'edgeRunner', getRemainingTimeInMillis: () => 3000 };
+
+            // Enforce 3s execution limit
+            const timer = setTimeout(() => resolve(null), 3000);
 
             try {
                 const result = handler(event, context, (err, res) => {
-                    if (err) reject(err);
-                    else resolve(res);
+                    clearTimeout(timer);
+                    if (err) reject(err); else resolve(res);
                 });
 
                 if (result && typeof result.then === 'function') {
-                    result.then(resolve).catch(reject);
+                    result.then(res => { clearTimeout(timer); resolve(res); }).catch(reject);
+                } else if (result !== undefined) {
+                    clearTimeout(timer);
+                    resolve(result);
                 }
             } catch (e) {
+                clearTimeout(timer);
                 reject(e);
             }
         });
     }
 
     _buildRequestRecord(req) {
-        const urlObj = new URL(req.url || '/', 'http://localhost');
+        const urlStr = req.url || '/';
+        const urlObj = new URL(urlStr, 'http://localhost');
+
+        // QueryString Determinism (Sorting for Cache Keys)
+        const params = [...urlObj.searchParams.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        const normalizedQs = new URLSearchParams(params).toString();
+
         return {
             method: req.method || 'GET',
             uri: urlObj.pathname,
-            querystring: urlObj.search.replace(/^\?/, ''),
-            headers: this._normalizeHeaders(req.headers || {})
+            querystring: normalizedQs,
+            headers: this._normalizeHeadersInternal(req.headers || {})
         };
     }
 
-    _normalizeHeaders(input) {
+    _normalizeHeadersInternal(input) {
         const headers = {};
         for (const [k, v] of Object.entries(input)) {
+            const key = k.toLowerCase();
             const val = Array.isArray(v) ? (v[0]?.value ?? v[0]) : (v?.value ?? v);
-            headers[k.toLowerCase()] = [{ key: k, value: String(val) }];
+            headers[key] = [{ key: k, value: String(val) }];
         }
         return headers;
     }
 
     _validateBlacklistedHeaders(original, final, hook) {
         const blacklist = ['host', 'via', 'connection'];
-
         blacklist.forEach(key => {
             const getVal = (headers) => {
                 if (!headers) return null;
                 const actualKey = Object.keys(headers).find(k => k.toLowerCase() === key);
                 return actualKey ? headers[actualKey][0]?.value : null;
             };
-
-            const oVal = getVal(original);
-            const fVal = getVal(final);
-
-            if (oVal !== fVal) {
+            if (getVal(original) !== getVal(final)) {
                 console.warn(`[CloudFrontize] Warning: ${hook} modified blacklisted header "${key}"`);
             }
         });
@@ -259,10 +242,12 @@ class EdgeRunner {
 
     _flatten(obj) {
         if (!obj) return obj;
-        const out = this._deepClone(obj);
-        if (out.headers) {
-            Object.keys(out.headers).forEach(k => {
-                const v = out.headers[k]?.[0]?.value;
+        // Shallow copy for output to prevent mutation of internal state
+        const out = { ...obj };
+
+        if (obj.headers) {
+            Object.keys(obj.headers).forEach(k => {
+                const v = obj.headers[k]?.[0]?.value;
                 if (v !== undefined) out[k.toLowerCase()] = v;
             });
         }
@@ -273,12 +258,8 @@ class EdgeRunner {
     }
 
     _deepClone(obj) {
-        return JSON.parse(JSON.stringify(obj));
+        try { return JSON.parse(JSON.stringify(obj)); } catch (e) { return { ...obj }; }
     }
-
-    /* =========================================================
-       ENV & WATCH
-    ========================================================= */
 
     _loadFidelityFiles() {
         if (this.envPath && fs.existsSync(this.envPath)) {
@@ -288,20 +269,15 @@ class EdgeRunner {
                 this.envVars[k] = v;
             }
         }
-
         if (this.bakePath && fs.existsSync(this.bakePath)) {
             this.bakeVars = dotenv.parse(fs.readFileSync(this.bakePath));
         }
     }
 
     _watch() {
-        [this.edgePath, this.envPath, this.bakePath]
-            .filter(Boolean)
-            .forEach(t => {
-                if (fs.existsSync(t)) {
-                    this.watchers.push(fs.watch(t, () => this._load()));
-                }
-            });
+        [this.edgePath, this.envPath, this.bakePath].filter(Boolean).forEach(t => {
+            if (fs.existsSync(t)) this.watchers.push(fs.watch(t, () => this._load()));
+        });
     }
 
     close() {
