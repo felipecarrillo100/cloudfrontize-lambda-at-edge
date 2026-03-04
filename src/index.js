@@ -19,43 +19,73 @@ function startServer(options) {
     const server = http.createServer(async (req, res) => {
         const acceptEncoding = req.headers['accept-encoding'] || '';
 
+        // === 0. BODY BUFFERING ===
+        let bodyBuffer = null;
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            bodyBuffer = await new Promise((resolve, reject) => {
+                const chunks = [];
+                req.on('data', chunk => chunks.push(chunk));
+                req.on('end', () => resolve(Buffer.concat(chunks)));
+                req.on('error', reject);
+            });
+        }
+
         // === 1. REQUEST HOOKS ===
         if (edgeRunner) {
-            const hookResult = await edgeRunner.runRequestHook(req);
-
-            if (hookResult) {
-                if (hookResult._isResponse) {
-                    const status = parseInt(hookResult.status) || 200;
-                    res.writeHead(status, hookResult.headers);
-                    res.end(hookResult.body || '');
+            // 40KB Limit Check (Fidelity)
+            if (bodyBuffer && bodyBuffer.length > 40 * 1024) {
+                const msg = `[CloudFrontize] Body exceeds 40KB limit (Current: ${(bodyBuffer.length / 1024).toFixed(1)}KB)`;
+                if (options.strict) {
+                    console.error(`🛑 ${msg} - AWS would reject this request via viewer-request.`);
+                    res.writeHead(502, { 'Content-Type': 'text/plain' });
+                    res.end('Bad Gateway (Body too large for viewer-request)');
                     return;
                 }
+                console.warn(`⚠️  ${msg}. This is allowed locally but AWS will reject it.`);
+            }
 
-                // 🔥 THE FALLBACK LOGIC: Only apply rewrite if the file actually exists
-                if (hookResult.url) {
-                    const potentialPath = path.join(options.directory, decodeURIComponent(hookResult.url.split('?')[0]));
+            try {
+                const hookResult = await edgeRunner.runRequestHook(req, bodyBuffer);
 
-                    if (fs.existsSync(potentialPath)) {
-                        req.url = hookResult.url;
+                if (hookResult) {
+                    if (hookResult._isResponse) {
+                        const status = parseInt(hookResult.status) || 200;
+                        res.writeHead(status, hookResult.headers);
+                        res.end(hookResult.body || '');
+                        return;
+                    }
 
-                        // Set compression headers for pre-compressed assets
-                        if (req.url.endsWith('.br') && acceptEncoding.includes('br')) {
-                            res.setHeader('Content-Encoding', 'br');
-                        } else if (req.url.endsWith('.gz') && acceptEncoding.includes('gzip')) {
-                            res.setHeader('Content-Encoding', 'gzip');
+                    // 🔥 THE FALLBACK LOGIC: Only apply rewrite if the file actually exists
+                    if (hookResult.url) {
+                        const potentialPath = path.join(options.directory, decodeURIComponent(hookResult.url.split('?')[0]));
+
+                        if (fs.existsSync(potentialPath)) {
+                            req.url = hookResult.url;
+
+                            // Set compression headers for pre-compressed assets
+                            if (req.url.endsWith('.br') && acceptEncoding.includes('br')) {
+                                res.setHeader('Content-Encoding', 'br');
+                            } else if (req.url.endsWith('.gz') && acceptEncoding.includes('gzip')) {
+                                res.setHeader('Content-Encoding', 'gzip');
+                            }
                         }
-                    } else {
-                        // File doesn't exist (like the missing .br test) -> Silent Fallback
-                        // We keep the original req.url
                     }
-                }
 
-                // Sync custom headers (Mobile/Geo/Security)
-                if (hookResult.headers) {
-                    for (const [k, values] of Object.entries(hookResult.headers)) {
-                        if (values && values[0]) res.setHeader(k, values[0].value);
+                    // Sync custom headers (Mobile/Geo/Security)
+                    if (hookResult.headers) {
+                        for (const [k, values] of Object.entries(hookResult.headers)) {
+                            if (values && values[0]) res.setHeader(k, values[0].value);
+                        }
                     }
                 }
+            } catch (err) {
+                if (options.strict && err.message.includes('Forbidden:')) {
+                    console.error(`🛑 Strict Mode Violation: ${err.message}`);
+                    res.writeHead(502, { 'Content-Type': 'text/plain' });
+                    res.end('Bad Gateway (Forbidden Header Mutation)');
+                    return;
+                }
+                throw err;
             }
         }
 

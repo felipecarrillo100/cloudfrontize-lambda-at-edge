@@ -25,6 +25,7 @@ program
     .option('-E, --env <path>', 'path to environment file (Strict: Reserved AWS variables only)')
     .option('-b, --bake <path>', 'path to variables file for __VAR__ string replacement')
     .option('-o, --output <path>', 'output the baked .js file(s) for production deployment')
+    .option('--strict', 'enforce strict CloudFront limits (40KB body, forbidden headers)')
     .action((directory, options) => {
         const port = options.listen !== '3000' ? options.listen : options.port;
 

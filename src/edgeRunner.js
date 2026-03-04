@@ -11,6 +11,7 @@ class EdgeRunner {
         this.envPath = options.envPath;
         this.bakePath = options.bakePath;
         this.outputPath = options.outputPath;
+        this.strict = options.strict || false;
 
         this.modules = {
             'viewer-request': [],
@@ -101,8 +102,8 @@ class EdgeRunner {
        FIDELITY: REQUEST PIPELINE (Checklist Item 1, 4, 12)
     ========================================================= */
 
-    async runRequestHook(req) {
-        let request = this._buildRequestRecord(req);
+    async runRequestHook(req, bodyBuffer) {
+        let request = this._buildRequestRecord(req, bodyBuffer);
 
         for (const type of ['viewer-request', 'origin-request']) {
             for (const mod of this.modules[type]) {
@@ -208,9 +209,16 @@ class EdgeRunner {
         });
     }
 
-    _buildRequestRecord(req) {
+    _buildRequestRecord(req, bodyBuffer) {
         const urlStr = req.url || '/';
         const urlObj = new URL(urlStr, 'http://localhost');
+
+        const body = bodyBuffer ? {
+            action: 'read',
+            data: bodyBuffer.toString('base64'),
+            encoding: 'base64',
+            inputTruncated: false
+        } : undefined;
 
         // QueryString Determinism (Sorting for Cache Keys)
         const params = [...urlObj.searchParams.entries()].sort((a, b) => a[0].localeCompare(b[0]));
@@ -220,7 +228,8 @@ class EdgeRunner {
             method: req.method || 'GET',
             uri: urlObj.pathname,
             querystring: normalizedQs,
-            headers: this._normalizeHeadersInternal(req.headers || {})
+            headers: this._normalizeHeadersInternal(req.headers || {}),
+            body
         };
     }
 
@@ -243,7 +252,11 @@ class EdgeRunner {
                 return actualKey ? headers[actualKey][0]?.value : null;
             };
             if (getVal(original) !== getVal(final)) {
-                console.warn(`[CloudFrontize] Warning: ${hook} modified blacklisted header "${key}"`);
+                const msg = `[CloudFrontize] Forbidden: ${hook} modified blacklisted header "${key}"`;
+                if (this.strict) {
+                    throw new Error(msg);
+                }
+                console.warn(msg);
             }
         });
     }
