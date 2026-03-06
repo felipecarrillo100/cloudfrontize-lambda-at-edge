@@ -142,16 +142,39 @@ function startServer(options) {
         }
 
         // === 3. STATIC FILE SERVING ===
+        const urlPath = decodeURIComponent(req.url.split('?')[0]);
+        const fullPath = path.join(options.directory, urlPath);
+
+        // --- FIDELITY ENFORCEMENT (--mode rest) ---
+        // If mode is 'rest', CloudFront does NOT automatically serve index.html for folders.
+        // It looks for a literal key matching the exact URI.
+        // We must check if the target is a directory. If it is, and NOT the root '/',
+        // we return 403 or 404 (S3 returns 403 if listing is denied, or 404 if not found).
+        const isRestMode = options.mode === 'rest';
+        if (isRestMode && urlPath !== '/') {
+            try {
+                if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
+                    res.writeHead(403, { 'Content-Type': 'text/plain' });
+                    res.end('403 Forbidden - Directory indexing is disabled in --mode rest. Use a Lambda@Edge origin-request hook to append index.html to the URI.');
+                    return;
+                }
+            } catch (err) {
+                // Ignore stat errors, let serve-handler handle 404s
+            }
+        }
+
         const runHandler = () => handler(req, res, {
             public: options.directory,
-            cleanUrls: true,
-            rewrites: options.single ? [{ source: '**', destination: '/index.html' }] : [],
+            cleanUrls: !isRestMode, // In rest mode, /about does NOT resolve to /about.html
+            directoryListing: !isRestMode, // In rest mode, no auto UI for folders
+            rewrites: [
+                ...(options.single ? [{ source: '**', destination: '/index.html' }] : []),
+                ...(isRestMode ? [{ source: '/', destination: '/index.html' }] : [])
+            ],
             etag: !options.noEtag,
             headers: options.cors ? [{ source: '**/*', headers: [{ key: 'Access-Control-Allow-Origin', value: '*' }] }] : []
         });
 
-        const urlPath = decodeURIComponent(req.url.split('?')[0]);
-        const fullPath = path.join(options.directory, urlPath);
         let shouldCompress = !options.noCompression;
 
         if (shouldCompress && fs.existsSync(fullPath) && fs.lstatSync(fullPath).isFile()) {

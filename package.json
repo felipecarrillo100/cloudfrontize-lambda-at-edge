@@ -1,7 +1,7 @@
 {
   "name": "cloudfrontize-lambda-at-edge",
   "description": "Simulate your Lambda@Edge functions locally for on a CloudFront-like static server.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "commonjs",
   "main": "dist/cli.js",
   "bin": {
@@ -25,7 +25,8 @@
     "dotenv": "^17.3.1",
     "esbuild": "^0.27.3",
     "jest": "^30.2.0",
-    "serve-handler": "^6.1.6"
+    "serve-handler": "^6.1.6",
+    "supertest": "^7.2.2"
   },
   "keywords": [
     "cloudfront",

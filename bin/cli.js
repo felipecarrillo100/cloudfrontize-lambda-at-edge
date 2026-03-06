@@ -26,6 +26,7 @@ program
     .option('-b, --bake <path>', 'path to variables file for __VAR__ string replacement')
     .option('-o, --output <path>', 'output the baked .js file(s) for production deployment')
     .option('--strict', 'enforce strict CloudFront limits (40KB body, forbidden headers)')
+    .option('-m, --mode <mode>', 'routing behavior: website (default) or rest', 'website')
     .action((directory, options) => {
         const port = options.listen !== '3000' ? options.listen : options.port;
 

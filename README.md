@@ -94,6 +94,7 @@ Each exercise comes with a **Business Scenario**, **Starter Template**, and **Fu
 
 | Flag | Description                                                        | Default |
 | --- |--------------------------------------------------------------------| --- |
+| **`-m, --mode <mode>`** | Routing behavior. `website` (magically serves index.html for folders) or `rest` (strict fidelity, folders return 403/404) | `website` |
 | **`-e, --edge <path>`** | Path to a Lambda@Edge module(s) (a js file or a folder of modules) | `null` |
 | **`-p, --port <number>`** | Port to listen on                                                  | `3000` |
 | **`-l, --listen <uri>`** | Listen URI (overrides `--port`)                                    | `3000` |
