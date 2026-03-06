@@ -75,18 +75,30 @@ function startServer(options) {
                         return;
                     }
 
-                    // 🔥 THE FALLBACK LOGIC: Only apply rewrite if the file actually exists
+                    // === FIDELITY: REWRITE HANDLING ===
                     if (hookResult.url) {
                         const potentialPath = path.join(options.directory, decodeURIComponent(hookResult.url.split('?')[0]));
+                        const exists = fs.existsSync(potentialPath);
 
-                        if (fs.existsSync(potentialPath)) {
+                        if (exists) {
                             req.url = hookResult.url;
-
                             // Set compression headers for pre-compressed assets
                             if (req.url.endsWith('.br') && acceptEncoding.includes('br')) {
                                 res.setHeader('Content-Encoding', 'br');
                             } else if (req.url.endsWith('.gz') && acceptEncoding.includes('gzip')) {
                                 res.setHeader('Content-Encoding', 'gzip');
+                            }
+                        } else {
+                            // Target does not exist. 
+                            if (options.strict) {
+                                // In strict mode, we apply the rewrite anyway. serve-handler will then 404.
+                                // This matches AWS behavior where a missing rewrite target results in a 404.
+                                req.url = hookResult.url;
+                            } else {
+                                // Default mode: Safety fallback to the original file to prevent local 404s.
+                                // But we MUST warn the user that this is non-fidelity behavior.
+                                console.warn(`⚠️  [CloudFrontize] Lambda rewritten URI to "${hookResult.url}" but file was not found at "${potentialPath}".`);
+                                console.warn(`   Falling back to original file. (Note: AWS Lambda@Edge would return a 404 for this request).`);
                             }
                         }
                     }
