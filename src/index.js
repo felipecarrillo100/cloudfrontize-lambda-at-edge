@@ -158,14 +158,13 @@ function startServer(options) {
         const fullPath = path.join(options.directory, urlPath);
 
         // --- FIDELITY ENFORCEMENT (--mode rest) ---
-        // If mode is 'rest', CloudFront does NOT automatically serve index.html for folders.
-        // It looks for a literal key matching the exact URI.
-        // We must check if the target is a directory. If it is, and NOT the root '/',
-        // we return 403 or 404 (S3 returns 403 if listing is denied, or 404 if not found).
         const isRestMode = options.mode === 'rest';
+        if (options.debug) console.log(`[Debug] Mode: ${options.mode}, isRestMode: ${isRestMode}, URL: ${req.url}, FullPath: ${fullPath}`);
+
         if (isRestMode && urlPath !== '/') {
             try {
                 if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
+                    if (options.debug) console.log(`[Debug] Triggering 403 for directory: ${fullPath}`);
                     res.writeHead(403, { 'Content-Type': 'text/plain' });
                     res.end('403 Forbidden - Directory indexing is disabled in --mode rest. Use a Lambda@Edge origin-request hook to append index.html to the URI.');
                     return;
