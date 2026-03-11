@@ -6,12 +6,16 @@ const { EdgeRunner } = require('../src/edgeRunner.js');
 const path = require('path');
 const fs = require('fs');
 
+// 1️⃣ Resolve the path to package.json relative to this file
+const pkgPath = path.join(__dirname, '../package.json');
+const pkg = require(pkgPath);
+
 const program = new Command();
 
 program
     .name('cloudfrontize')
     .description('Static server with CloudFront Fidelity: Environments & Variable Baking')
-    .version('1.0.0')
+    .version(pkg.version)
     .argument('[directory]', 'directory to serve', '.')
     .option('-p, --port <number>', 'port to listen on', '3000')
     .option('-l, --listen <uri>', 'listen URI', '3000')
@@ -26,7 +30,7 @@ program
     .option('-b, --bake <path>', 'path to variables file for __VAR__ string replacement')
     .option('-o, --output <path>', 'output the baked .js file(s) for production deployment')
     .option('--strict', 'enforce strict CloudFront limits (40KB body, forbidden headers)')
-    .option('-m, --mode <mode>', 'routing behavior: website (default) or rest', 'website')
+    .option('-m, --mode <mode>', 'routing behavior: website (S3 Website Hosting) or rest (S3 REST/OAC, default)', 'rest')
     .action((directory, options) => {
         const port = options.listen !== '3000' ? options.listen : options.port;
 

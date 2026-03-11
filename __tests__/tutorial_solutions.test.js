@@ -12,7 +12,7 @@ describe('Tutorial Solutions: Automated Verification', () => {
         runners.forEach(r => r.runner.close());
     });
 
-    const getRunner = (file) => {
+    const getRunner = (file, options) => {
         // We need to create a temp directory for the EdgeRunner because it expects a directory of hooks
         const tempDir = path.join(__dirname, `temp_sol_${path.basename(file, '.js')}`);
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
@@ -20,7 +20,8 @@ describe('Tutorial Solutions: Automated Verification', () => {
         const hookContent = fs.readFileSync(path.join(solutionsDir, file), 'utf8');
         fs.writeFileSync(path.join(tempDir, 'index.js'), hookContent);
 
-        const runner = new EdgeRunner(tempDir, { watch: false });
+        const o = options ? options : {};
+        const runner = new EdgeRunner(tempDir, { watch: false, ...o });
         runners.push({
             runner,
             cleanup: () => {
@@ -123,10 +124,13 @@ describe('Tutorial Solutions: Automated Verification', () => {
     });
 
     test('4.1-baker: Should connect to API endpoint', async () => {
-        // Exercise 4.1 expects a global variable. We can't easily test the "bake" part 
+        // Exercise 4.1 expects a global variable. We can't easily test the "bake" part
         // without a separate process, but we can verify the code is valid.
-        const runner = getRunner('4.1-baker.js');
-        const res = await runner.runRequestHook({ url: '/' });
-        expect(res.uri).toBe('/');
+        const bakeFile = path.resolve(__dirname, '../tutorial/solutions/4.1-baked.variables');
+        const runner = getRunner('4.1-baker.js', {bakePath: bakeFile});
+        const res = await runner.runRequestHook({url: '/'});
+        const endpoint = res.headers["x-baked-end-point"][0];
+        const value = endpoint.value;
+        expect(value).toBe("http://localhost:9090");
     });
 });

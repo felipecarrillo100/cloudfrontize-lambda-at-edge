@@ -23,15 +23,15 @@ exports.handler = async (event) => {
 ## 🛠️ Instructions
 1. Open `tutorial/module-4-production/exercise-1/index.js`.
 2. Look at how it handles the missing `API_ENDPOINT`.
-3. Create a `.env` file in that directory:
+3. Create a `.env.baked.variables` file in that directory:
    ```env
-   BAKE_API_ENDPOINT=https://api.production.com
+   API_ENDPOINT=https://api.production.com
    ```
 4. Run the emulator pointing to the original hook:
    ```bash
-   cloudfrontize www --edge ./tutorial/module-4-production/exercise-1/index.js --bake ./tutorial/module-4-production/exercise-1/.bake --output ./dist/hook.js
+   cloudfrontize www --edge ./tutorial/module-4-production/exercise-1/index.js --bake ./tutorial/module-4-production/exercise-1/.env.baked.variables --output ./dist/prod_lambda.js
    ```
-5. Open the generated `dist/lambda.js` file.
+5. Open the generated `dist/prod_lambda.js` file.
 6. Observe how `API_ENDPOINT` has been injected as a top-level constant!
 
 ## 💡 Fidelity Tip

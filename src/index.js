@@ -176,11 +176,15 @@ function startServer(options) {
 
         const runHandler = () => handler(req, res, {
             public: options.directory,
-            cleanUrls: !isRestMode, // In rest mode, /about does NOT resolve to /about.html
-            directoryListing: !isRestMode, // In rest mode, no auto UI for folders
+            // cleanUrls is intentionally DISABLED in all modes.
+            // S3 (both Website Hosting and REST/OAC) never strips .html extensions or does
+            // clean-URL redirects. Enabling it creates infinite redirect loops when a
+            // Lambda@Edge hook rewrites a path to '/index.html'.
+            cleanUrls: false,
+            directoryListing: !isRestMode, // In rest mode, no auto directory listing UI
             rewrites: [
-                ...(options.single ? [{ source: '**', destination: '/index.html' }] : []),
-                ...(isRestMode ? [{ source: '/', destination: '/index.html' }] : [])
+                { source: '/', destination: '/index.html' },
+                ...(options.single ? [{ source: '**', destination: '/index.html' }] : [])
             ],
             etag: !options.noEtag,
             headers: options.cors ? [{ source: '**/*', headers: [{ key: 'Access-Control-Allow-Origin', value: '*' }] }] : []
