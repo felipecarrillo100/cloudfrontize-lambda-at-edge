@@ -83,4 +83,42 @@ describe('Context-Aware Module Injection', () => {
         edgeRunner = new EdgeRunner(hookPath, { watch: false });
         expect(edgeRunner.modules['viewer-response']).toBeDefined();
     });
+
+    test('Origin Request: Allowed to require @aws-sdk/client-s3', async () => {
+        const hookPath = createHook('origin_s3.js', `
+            exports.hookType = 'origin-request';
+            const { S3Client } = require('@aws-sdk/client-s3');
+            exports.handler = async (event) => {
+                return event.request;
+            };
+        `);
+        edgeRunner = new EdgeRunner(hookPath, { watch: false });
+        expect(edgeRunner.modules['origin-request']).toBeDefined();
+    });
+
+    test('Viewer Request: Allowed to require @aws-sdk/util-utf8', async () => {
+        const hookPath = createHook('viewer_util.js', `
+            exports.hookType = 'viewer-request';
+            const util = require('@aws-sdk/util-utf8');
+            exports.handler = async (event) => {
+                return event.request;
+            };
+        `);
+        edgeRunner = new EdgeRunner(hookPath, { watch: false });
+        expect(edgeRunner.modules['viewer-request']).toBeDefined();
+    });
+
+    test('Viewer Request: Forbidden to require @aws-sdk/client-s3', async () => {
+        const hookPath = createHook('viewer_s3_forbidden.js', `
+            exports.hookType = 'viewer-request';
+            const { S3Client } = require('@aws-sdk/client-s3');
+            exports.handler = async (event) => {
+                return event.request;
+            };
+        `);
+        
+        expect(() => {
+            new EdgeRunner(hookPath, { watch: false });
+        }).toThrow(/Forbidden: @aws-sdk\/client-s3 is not available/);
+    });
 });
