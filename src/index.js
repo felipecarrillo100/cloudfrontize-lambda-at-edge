@@ -5,6 +5,7 @@ const handler = require('serve-handler');
 const compression = require('compression');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { AWS_LIMITS } = require('./constants');
 
 function startServer(options) {
@@ -19,6 +20,7 @@ function startServer(options) {
 
     const server = http.createServer(async (req, res) => {
         const acceptEncoding = req.headers['accept-encoding'] || '';
+        const requestID = crypto.randomBytes(4).toString('hex');
 
         // === 0. BODY BUFFERING ===
         let bodyBuffer = null;
@@ -46,7 +48,7 @@ function startServer(options) {
             }
 
             try {
-                const hookResult = await edgeRunner.runRequestHook(req, bodyBuffer);
+                const hookResult = await edgeRunner.runRequestHook(req, bodyBuffer, requestID);
 
                 if (hookResult) {
                     if (hookResult._isResponse) {
@@ -135,7 +137,7 @@ function startServer(options) {
                 const hookResponse = await edgeRunner.runResponseHook(req, {
                     status: initialStatus,
                     headers: res.getHeaders()
-                });
+                }, requestID);
 
                 if (hookResponse && hookResponse.headers) {
                     for (const [k, values] of Object.entries(hookResponse.headers)) {

@@ -25,6 +25,7 @@ program
     .option('-u, --no-compression', 'disable auto-compression for small files')
     .option('--no-etag', 'disable ETag')
     .option('-L, --no-request-logging', 'mute logs')
+    .option('--log <path>', 'path to log file for Lambda@Edge console output (overwrites)')
     .option('-e, --edge <path>', 'path to a Lambda@Edge module or directory to simulate')
     .option('-E, --env <path>', 'path to environment file (Strict: Reserved AWS variables only)')
     .option('-b, --bake <path>', 'path to variables file for __VAR__ string replacement')
@@ -56,6 +57,7 @@ program
 
             edgeRunner = new EdgeRunner(edgePath, {
                 debug: options.debug,
+                logPath: options.log ? path.resolve(options.log) : null,
                 envPath: options.env ? path.resolve(options.env) : null,
                 bakePath: options.bake ? path.resolve(options.bake) : null,
                 outputPath: options.output ? path.resolve(options.output) : null

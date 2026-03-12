@@ -12,10 +12,15 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         if (!fs.existsSync(testHooksDir)) fs.mkdirSync(testHooksDir);
     });
 
-    afterAll(() => {
+    afterEach(() => {
         if (fs.existsSync(testHooksDir)) {
             fs.readdirSync(testHooksDir).forEach(f => fs.unlinkSync(path.join(testHooksDir, f)));
-            fs.rmdirSync(testHooksDir);
+        }
+    });
+
+    afterAll(() => {
+        if (fs.existsSync(testHooksDir)) {
+            fs.rmSync(testHooksDir, { recursive: true, force: true });
         }
     });
 

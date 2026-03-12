@@ -6,6 +6,7 @@ const vm = require('vm');
 const dotenv = require('dotenv');
 
 const { AWS_RUNTIME, AWS_HEADERS, AWS_LIMITS } = require('./constants');
+const { AsyncLocalStorage } = require('async_hooks');
 
 class EdgeRunner {
     constructor(edgePath, options = {}) {
@@ -14,6 +15,15 @@ class EdgeRunner {
         this.bakePath = options.bakePath;
         this.outputPath = options.outputPath;
         this.strict = options.strict || false;
+        this.debug = options.debug || false;
+        this.logPath = options.logPath;
+        this.logContext = new AsyncLocalStorage();
+
+        // Initialize log file (overwrite)
+        if (this.logPath) {
+            fs.mkdirSync(path.dirname(this.logPath), { recursive: true });
+            fs.writeFileSync(this.logPath, '');
+        }
 
         this.modules = {
             'viewer-request': [],
@@ -62,10 +72,31 @@ class EdgeRunner {
             fs.writeFileSync(this.outputPath, code);
         }
 
+        const logger = (level, ...args) => {
+            const ctx = this.logContext.getStore() || { requestId: 'INTERNAL', hookType: 'INIT' };
+            const timestamp = new Date().toISOString();
+            const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
+            const formatted = `${timestamp}  [${ctx.requestId}] [${ctx.hookType}]  ${message}\n`;
+
+            if (this.debug) {
+                process[level === 'error' ? 'stderr' : 'stdout'].write(formatted);
+            }
+            if (this.logPath) {
+                fs.appendFileSync(this.logPath, formatted);
+            }
+        };
+
         const mockModule = { exports: {} };
         const sandbox = {
             module: mockModule, exports: mockModule.exports,
-            Buffer, console, setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
+            Buffer,
+            console: {
+                log: (...args) => logger('log', ...args),
+                info: (...args) => logger('log', ...args),
+                warn: (...args) => logger('warn', ...args),
+                error: (...args) => logger('error', ...args),
+            },
+            setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
             URL, URLSearchParams, TextEncoder, TextDecoder,
             process: { env: { ...this.envVars }, nextTick: process.nextTick, version: process.version },
             require: (id) => {
@@ -95,15 +126,17 @@ class EdgeRunner {
        FIDELITY: REQUEST PIPELINE (Checklist Item 1, 4, 12)
     ========================================================= */
 
-    async runRequestHook(req, bodyBuffer) {
+    async runRequestHook(req, bodyBuffer, requestID = 'UNKNOWN') {
         let request = this._buildRequestRecord(req, bodyBuffer);
 
         for (const type of ['viewer-request', 'origin-request']) {
             for (const mod of this.modules[type]) {
                 const originalHeaders = this._deepClone(request.headers);
 
-                // Invoke the Lambda handler
-                const result = await this._invoke(mod.handler, request, type);
+                // Invoke the Lambda handler within the log context
+                const result = await this.logContext.run({ requestId: requestID, hookType: type }, () => 
+                    this._invoke(mod.handler, request, type)
+                );
 
                 if (!result) continue;
 
@@ -145,7 +178,7 @@ class EdgeRunner {
        FIDELITY: RESPONSE PIPELINE (Checklist Item 1)
     ========================================================= */
 
-    async runResponseHook(req, resData) {
+    async runResponseHook(req, resData, requestID = 'UNKNOWN') {
         const request = this._buildRequestRecord(req);
         let response = {
             status: String(resData.status || 200),
@@ -156,7 +189,10 @@ class EdgeRunner {
         for (const type of ['origin-response', 'viewer-response']) {
             for (const mod of this.modules[type]) {
                 const originalHeaders = this._deepClone(response.headers);
-                const result = await this._invoke(mod.handler, { request, response }, type);
+                
+                const result = await this.logContext.run({ requestId: requestID, hookType: type }, () => 
+                    this._invoke(mod.handler, { request, response }, type)
+                );
 
                 response = result?.response || result || response;
 
