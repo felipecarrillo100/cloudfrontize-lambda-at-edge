@@ -138,6 +138,8 @@ class EdgeRunner {
                     this._invoke(mod.handler, request, type)
                 );
 
+                // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return null
+                if (result === null && this.strict) return null;
                 if (!result) continue;
 
                 // Short-circuit: Response returned instead of request mutation
@@ -194,6 +196,9 @@ class EdgeRunner {
                     this._invoke(mod.handler, { request, response }, type)
                 );
 
+                // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return null
+                if (result === null && this.strict) return null;
+                
                 response = result?.response || result || response;
 
                 if (response.headers) {
@@ -211,29 +216,80 @@ class EdgeRunner {
 
     _invoke(handler, record, type) {
         return new Promise((resolve, reject) => {
+            const isViewerHook = type.startsWith('viewer-');
+            const limit = isViewerHook ? AWS_LIMITS.VIEWER_TIMEOUT_MS : AWS_LIMITS.ORIGIN_TIMEOUT_MS;
+            const startTime = Date.now();
+
             const cloned = this._deepClone(record);
             const cf = type.includes('response') ? { request: cloned.request, response: cloned.response } : { request: cloned };
             const event = { Records: [{ cf }] };
-            const context = { functionName: 'edgeRunner', getRemainingTimeInMillis: () => AWS_LIMITS.EXECUTION_TIMEOUT_MS };
+            const context = {
+                functionName: 'edgeRunner',
+                getRemainingTimeInMillis: () => Math.max(0, limit - (Date.now() - startTime))
+            };
 
-            // Enforce execution limit
-            const timer = setTimeout(() => resolve(null), AWS_LIMITS.EXECUTION_TIMEOUT_MS);
+            let timedOut = false;
+            let resolved = false;
+            const timer = setTimeout(() => {
+                timedOut = true;
+                const msg = `Lambda execution exceeded ${limit / 1000}s timeout limit.`;
+                const ctx = this.logContext.getStore() || { requestId: 'UNKNOWN', hookType: type };
+                const logMsg = `${new Date().toISOString()}  [${ctx.requestId}] [${ctx.hookType}]  [ERROR] ${msg}\n`;
+
+                if (this.debug) process.stderr.write(logMsg);
+                if (this.logPath) fs.appendFileSync(this.logPath, logMsg);
+
+                if (this.strict) {
+                    resolved = true;
+                    resolve(null); // Abort execution in strict mode
+                }
+            }, limit);
 
             try {
-                const result = handler(event, context, (err, res) => {
+                const handleResult = (res) => {
+                    if (resolved) return;
+                    
+                    // In strict mode, if we already timed out, we MUST NOT resolve with the result.
+                    // The timeout handler already resolved with null.
+                    if (timedOut && this.strict) return;
+                    
+                    resolved = true;
                     clearTimeout(timer);
-                    if (err) reject(err); else resolve(res);
+                    
+                    if (timedOut && !this.strict) {
+                        const ctx = this.logContext.getStore() || { requestId: 'UNKNOWN', hookType: type };
+                        console.warn(`⚠️  [${ctx.requestId}] [${ctx.hookType}] Fidelity Warning: Handler took ${((Date.now() - startTime) / 1000).toFixed(2)}s, exceeding the AWS ${limit / 1000}s limit.`);
+                    }
+                    resolve(res);
+                };
+
+                const result = handler(event, context, (err, res) => {
+                    if (resolved) return;
+                    if (err) {
+                        resolved = true;
+                        clearTimeout(timer);
+                        reject(err);
+                    } else {
+                        handleResult(res);
+                    }
                 });
 
                 if (result && typeof result.then === 'function') {
-                    result.then(res => { clearTimeout(timer); resolve(res); }).catch(reject);
+                    result.then(handleResult).catch(err => {
+                        if (resolved) return;
+                        resolved = true;
+                        clearTimeout(timer);
+                        reject(err);
+                    });
                 } else if (result !== undefined) {
-                    clearTimeout(timer);
-                    resolve(result);
+                    handleResult(result);
                 }
             } catch (e) {
-                clearTimeout(timer);
-                reject(e);
+                if (!resolved) {
+                    resolved = true;
+                    clearTimeout(timer);
+                    reject(e);
+                }
             }
         });
     }

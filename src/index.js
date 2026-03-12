@@ -60,6 +60,13 @@ function startServer(options) {
             try {
                 const hookResult = await edgeRunner.runRequestHook(req, bodyBuffer, requestID);
 
+                if (hookResult === null && options.strict) {
+                    console.error('🛑 Strict Mode Violation: Lambda execution timed out and was aborted.');
+                    res.writeHead(502, { 'Content-Type': 'text/plain' });
+                    res.end('Bad Gateway (Lambda Execution Timeout)');
+                    return;
+                }
+
                 if (hookResult) {
                     if (hookResult._isResponse) {
                         const body = hookResult.body || '';
@@ -148,6 +155,13 @@ function startServer(options) {
                     status: initialStatus,
                     headers: res.getHeaders()
                 }, requestID);
+
+                if (hookResponse === null && options.strict) {
+                    console.error('🛑 Strict Mode Violation: Lambda execution timed out and was aborted.');
+                    res.writeHead(502, { 'Content-Type': 'text/plain' });
+                    res.end('Bad Gateway (Lambda Execution Timeout)');
+                    return;
+                }
 
                 if (hookResponse && hookResponse.headers) {
                     for (const [k, values] of Object.entries(hookResponse.headers)) {

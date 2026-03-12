@@ -7,7 +7,8 @@ const AWS_LIMITS = {
     VIEWER_REQUEST_BODY_BYTES: 40 * 1024,      // 40KB
     GENERATED_RESPONSE_BODY_BYTES: 1024 * 1024, // 1MB
     COMPRESSION_BYPASS_BYTES: 10 * 1024 * 1024, // 10MB
-    EXECUTION_TIMEOUT_MS: 3000                  // 3 seconds
+    VIEWER_TIMEOUT_MS: 5000,                  // 5 seconds
+    ORIGIN_TIMEOUT_MS: 30000                  // 30 seconds
 };
 
 /**
