@@ -223,10 +223,12 @@ function startServer(options) {
         if (!options.noRequestLogging) {
             console.log(`\n☁️  Cloudfrontize running on http://localhost:${options.port}`);
             if (edgeRunner) {
-                const hooks = Object.keys(edgeRunner.modules)
-                    .filter(k => edgeRunner.modules[k].length > 0)
-                    .join(', ');
-                console.log(`⚡ Edge modules loaded: ${hooks || 'none'}`);
+                Object.entries(edgeRunner.modules).forEach(([hook, mods]) => {
+                    if (mods.length > 0) {
+                        const filename = path.basename(mods[0].file);
+                        console.log(`⚡ ${hook} (${filename})`);
+                    }
+                });
             }
         }
     });

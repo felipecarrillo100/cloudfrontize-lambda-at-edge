@@ -82,6 +82,11 @@ class EdgeRunner {
 
         const mod = mockModule.exports;
         if (mod.handler && mod.hookType) {
+            const existing = this.modules[mod.hookType][0];
+            if (existing) {
+                console.warn(`⚠️  [CloudFrontize] Warning: Multiple files found for "${mod.hookType}". Keeping "${path.basename(existing.file)}" and ignoring "${path.basename(filePath)}".`);
+                return;
+            }
             this.modules[mod.hookType].push({ handler: mod.handler, file: filePath });
         }
     }
