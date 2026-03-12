@@ -24,15 +24,19 @@ describe('End-to-End: Variable Baking & Env Whitelisting', () => {
 
     afterAll(() => {
         // Clean up test files and directory
-        [tempEnv, tempBake, tempOut].forEach(f => {
+        [tempEnv, tempBake].forEach(f => {
             if (fs.existsSync(f)) fs.unlinkSync(f);
         });
+        if (fs.existsSync(tempOut)) {
+            fs.rmSync(tempOut, { recursive: true, force: true });
+        }
         if (fs.existsSync(testDir)) {
-            fs.readdirSync(testDir).forEach(f => fs.unlinkSync(path.join(testDir, f)));
-            fs.rmdirSync(testDir);
+            fs.rmSync(testDir, { recursive: true, force: true });
         }
         const outDir = path.dirname(tempOut);
-        if (fs.existsSync(outDir)) fs.rmdirSync(outDir);
+        if (fs.existsSync(outDir)) {
+            fs.rmSync(outDir, { recursive: true, force: true });
+        }
     });
 
     test('🛡️ Should BLOCK non-reserved AWS variables in .env', () => {
@@ -67,8 +71,9 @@ describe('End-to-End: Variable Baking & Env Whitelisting', () => {
             watch: false
         });
 
-        expect(fs.existsSync(tempOut)).toBe(true);
-        const content = fs.readFileSync(tempOut, 'utf8');
+        const actualOutPath = path.join(tempOut, 'bakeTest.js');
+        expect(fs.existsSync(actualOutPath)).toBe(true);
+        const content = fs.readFileSync(actualOutPath, 'utf8');
         expect(content).toContain('value: "prod-live-key"');
     });
 });

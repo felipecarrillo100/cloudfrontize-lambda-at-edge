@@ -73,8 +73,15 @@ class EdgeRunner {
         code = code.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
 
         if (this.outputPath) {
-            fs.mkdirSync(this.outputPath, { recursive: true });
-            const outFilePath = path.join(this.outputPath, path.basename(filePath));
+            const isSourceDir = fs.statSync(this.edgePath).isDirectory();
+            
+            // If the user specified a file path (has extension) AND source is not a dir, use it directly.
+            // Otherwise (user specified a dir, or source is a dir containing multiple files), append the filename.
+            const outFilePath = (isSourceDir || !path.extname(this.outputPath))
+                ? path.join(this.outputPath, path.basename(filePath))
+                : this.outputPath;
+
+            fs.mkdirSync(path.dirname(outFilePath), { recursive: true });
             fs.writeFileSync(outFilePath, code);
         }
 

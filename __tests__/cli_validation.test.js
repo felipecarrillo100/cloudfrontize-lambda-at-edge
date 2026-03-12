@@ -42,7 +42,7 @@ describe('CLI Argument Validation', () => {
         exec(`node ${cliPath} . --output ${outputFile}`, (error, stdout, stderr) => {
             expect(error).not.toBeNull();
             expect(error.code).toBe(1);
-            expect(stderr).toContain('Error: --bake and --output require a source --edge file');
+            expect(stderr).toContain('Error: --bake and --output require a source --edge or --cff file');
             done();
         });
     });

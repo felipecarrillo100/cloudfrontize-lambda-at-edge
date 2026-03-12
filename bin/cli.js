@@ -66,16 +66,20 @@ program
                     logPath: options.log ? path.resolve(options.log) : null,
                     envPath: options.env ? path.resolve(options.env) : null,
                     bakePath: options.bake ? path.resolve(options.bake) : null,
-                    outputPath: options.output ? path.join(path.resolve(options.output), 'edge') : null
+                    outputPath: options.output ? path.resolve(options.output) : null
                 });
             }
 
             if (cffPath) {
+                // For CFF, always append a 'cff' subfolder to the output path
+                const cffRawOutput = options.output ? path.resolve(options.output) : null;
+                const cffTargetOutput = cffRawOutput ? path.join(cffRawOutput, 'cff') : null;
+
                 cffRunner = new CFFRunner(cffPath, {
                     debug: options.debug,
                     strict: options.strict,
                     bakePath: options.bake ? path.resolve(options.bake) : null,
-                    outputPath: options.output ? path.join(path.resolve(options.output), 'cff') : null
+                    outputPath: cffTargetOutput
                 });
             }
 
