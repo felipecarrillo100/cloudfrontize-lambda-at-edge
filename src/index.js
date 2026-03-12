@@ -22,6 +22,16 @@ function startServer(options) {
         const acceptEncoding = req.headers['accept-encoding'] || '';
         const requestID = crypto.randomBytes(4).toString('hex');
 
+        // === 0. DEFAULT HEADER INJECTION ===
+        if (options.defaultHeaders) {
+            for (const [key, value] of Object.entries(options.defaultHeaders)) {
+                const lowerKey = key.toLowerCase();
+                if (req.headers[lowerKey] === undefined) {
+                    req.headers[lowerKey] = value;
+                }
+            }
+        }
+
         // === 0. BODY BUFFERING ===
         let bodyBuffer = null;
         if (req.method !== 'GET' && req.method !== 'HEAD') {
