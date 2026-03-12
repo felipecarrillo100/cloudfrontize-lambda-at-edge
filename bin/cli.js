@@ -16,7 +16,7 @@ program
     .name('cloudfrontize')
     .description('Static server with CloudFront Fidelity: Environments & Variable Baking')
     .version(pkg.version)
-    .argument('[directory]', 'directory to serve', '.')
+    .argument('[directory]', 'directory to serve')
     .option('-p, --port <number>', 'port to listen on', '3000')
     .option('-l, --listen <uri>', 'listen URI', '3000')
     .option('-s, --single', 'SPA mode: rewrite all not-found to index.html')
@@ -32,7 +32,15 @@ program
     .option('--strict', 'enforce strict CloudFront limits (40KB body, forbidden headers)')
     .option('-m, --mode <mode>', 'routing behavior: website (S3 Website Hosting) or rest (S3 REST/OAC, default)', 'rest')
     .action((directory, options) => {
+        // Validation: Directory is mandatory unless we are just baking
+        if (!directory && !options.output) {
+            console.error('🛑 Error: A directory to serve must be provided (e.g., cloudfrontize ./www).');
+            console.error('   Or use --output to bake Lambda@Edge files without starting the server.');
+            process.exit(1);
+        }
+
         const port = options.listen !== '3000' ? options.listen : options.port;
+        const isJustBaking = options.output && !directory;
 
         let edgeRunner = null;
 
@@ -53,12 +61,9 @@ program
                 outputPath: options.output ? path.resolve(options.output) : null
             });
 
-            // If the user specified an output but didn't provide a directory to serve,
-            // we assume they just wanted to run the build/bake step.
-            const isJustBaking = options.output && process.argv.length <= 6 && !options.port;
-
             if (isJustBaking) {
                 console.log(`✅ Production-ready file(s) generated at: ${options.output}`);
+                console.log(`ℹ️  Baking complete. No directory provided, so the server will not start.`);
                 process.exit(0);
             }
         }
