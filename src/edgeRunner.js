@@ -73,8 +73,9 @@ class EdgeRunner {
         code = code.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
 
         if (this.outputPath) {
-            fs.mkdirSync(path.dirname(this.outputPath), { recursive: true });
-            fs.writeFileSync(this.outputPath, code);
+            fs.mkdirSync(this.outputPath, { recursive: true });
+            const outFilePath = path.join(this.outputPath, path.basename(filePath));
+            fs.writeFileSync(outFilePath, code);
         }
 
         const logger = (level, ...args) => {

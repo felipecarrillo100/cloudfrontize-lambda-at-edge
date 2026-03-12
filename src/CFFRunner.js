@@ -3,12 +3,21 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const dotenv = require('dotenv');
 const { CFF_LIMITS, CFF_RUNTIME } = require('./constants');
 
 class CFFRunner {
     constructor(sourcePath, options = {}) {
         this.sourcePath = sourcePath ? path.resolve(sourcePath) : null;
         this.options = options;
+        this.outputPath = options.outputPath;
+        this.bakePath = options.bakePath;
+        this.bakeVars = {};
+
+        if (this.bakePath && fs.existsSync(this.bakePath)) {
+            this.bakeVars = dotenv.parse(fs.readFileSync(this.bakePath));
+        }
+
         this.functions = {
             'viewer-request': [],
             'viewer-response': []
@@ -50,7 +59,15 @@ class CFFRunner {
             return;
         }
 
-        const code = fs.readFileSync(filePath, 'utf8');
+        let code = fs.readFileSync(filePath, 'utf8');
+        code = code.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
+
+        if (this.outputPath) {
+            fs.mkdirSync(this.outputPath, { recursive: true });
+            const outFilePath = path.join(this.outputPath, filename);
+            fs.writeFileSync(outFilePath, code);
+        }
+
         if (code.length > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
             const msg = `[CFF] Code size (${(code.length / 1024).toFixed(1)}KB) exceeds 10KB limit.`;
             if (this.options.strict) {

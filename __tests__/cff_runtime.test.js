@@ -106,8 +106,47 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
         expect(event.response.statusCode).toBe(201);
         expect(event.response.headers['x-resp'].value).toBe('hello');
 
-        const mapped = runner.fromCFFEvent(event.response);
-        expect(mapped.status).toBe(201);
-        expect(mapped.headers['x-resp'][0].value).toBe('hello');
+        const mappedRes = runner.fromCFFEvent(event.response);
+
+        expect(mappedRes.status).toBe(201);
+        expect(mappedRes.headers['x-resp'][0].value).toBe('hello');
+    });
+
+    test('🔥 CFF Variable Baking: Should inject __VAR__ values and output files', async () => {
+        const testDir = path.join(baseDir, 'baking');
+        const outputDir = path.join(testDir, '_output');
+        const bakeFile = path.join(testDir, 'vars.env');
+        
+        fs.mkdirSync(testDir, { recursive: true });
+        
+        fs.writeFileSync(bakeFile, 'API_KEY=xyz123\nDEBUG=true');
+        fs.writeFileSync(path.join(testDir, 'viewer-request-bake.js'), `
+            function handler(event) {
+                var request = event.request;
+                request.headers['x-api-key'] = { value: "__API_KEY__" };
+                request.headers['x-debug'] = { value: "__DEBUG__" };
+                return request;
+            }
+        `);
+
+        const runner = new CFFRunner(testDir, {
+            bakePath: bakeFile,
+            outputPath: outputDir
+        });
+
+        // Test the runtime injection
+        const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
+        const result = await runner.runChain('viewer-request', event);
+
+        expect(result.request.headers['x-api-key'].value).toBe('xyz123');
+        expect(result.request.headers['x-debug'].value).toBe('true');
+
+        // Test the file output
+        const bakedFile = path.join(outputDir, 'viewer-request-bake.js');
+        expect(fs.existsSync(bakedFile)).toBe(true);
+        const bakedCode = fs.readFileSync(bakedFile, 'utf8');
+        expect(bakedCode).toContain('"xyz123"');
+        expect(bakedCode).toContain('"true"');
+        expect(bakedCode).not.toContain('__API_KEY__');
     });
 });

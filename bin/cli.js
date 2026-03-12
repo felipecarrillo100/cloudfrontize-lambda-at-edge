@@ -39,7 +39,7 @@ program
         // Validation: Directory is mandatory unless we are just baking
         if (!directory && !options.output) {
             console.error('🛑 Error: A directory to serve must be provided (e.g., cloudfrontize ./www).');
-            console.error('   Or use --output to bake Lambda@Edge files without starting the server.');
+            console.error('   Or use --output to bake Lambda@Edge or CFF files without starting the server.');
             process.exit(1);
         }
 
@@ -54,9 +54,9 @@ program
             const edgePath = options.edge ? path.resolve(options.edge) : null;
             const cffPath = options.cff ? path.resolve(options.cff) : null;
 
-            // Validate: Can't bake or output without a source file/directory (only for L@E)
-            if (!edgePath && (options.bake || options.output)) {
-                console.error('🛑 Error: --bake and --output require a source --edge file or directory.');
+            // Validate: Can't bake or output without a source file/directory (L@E or CFF)
+            if (!edgePath && !cffPath && (options.bake || options.output)) {
+                console.error('🛑 Error: --bake and --output require a source --edge or --cff file or directory.');
                 process.exit(1);
             }
 
@@ -66,14 +66,16 @@ program
                     logPath: options.log ? path.resolve(options.log) : null,
                     envPath: options.env ? path.resolve(options.env) : null,
                     bakePath: options.bake ? path.resolve(options.bake) : null,
-                    outputPath: options.output ? path.resolve(options.output) : null
+                    outputPath: options.output ? path.join(path.resolve(options.output), 'edge') : null
                 });
             }
 
             if (cffPath) {
                 cffRunner = new CFFRunner(cffPath, {
                     debug: options.debug,
-                    strict: options.strict
+                    strict: options.strict,
+                    bakePath: options.bake ? path.resolve(options.bake) : null,
+                    outputPath: options.output ? path.join(path.resolve(options.output), 'cff') : null
                 });
             }
 
