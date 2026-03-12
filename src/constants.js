@@ -31,7 +31,24 @@ const AWS_HEADERS = {
  * Sandbox & Runtime Configurations
  */
 const AWS_RUNTIME = {
-    FORBIDDEN_MODULES: ['fs', 'child_process', 'os'],
+    // Whitelisted built-ins for ALL hook types
+    ALLOWED_GLOBAL: ['crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring'],
+    
+    // Viewer hooks: Global + specific utility modules (No network/disk I/O)
+    ALLOWED_VIEWER: [
+        'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring',
+        '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64'
+    ],
+    
+    // Origin hooks: All viewer modules + S3/DynamoDB/SecretsManager/AppConfig + File System
+    ALLOWED_ORIGIN: [
+        'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring',
+        '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64',
+        'fs',
+        '@aws-sdk/client-s3', '@aws-sdk/client-dynamodb', '@aws-sdk/client-secrets-manager', '@aws-sdk/client-appconfig'
+    ],
+
+    FORBIDDEN_MODULES: ['child_process', 'os', 'http', 'https', 'net', 'dns'], // Strict global bans
     DEFAULT_ENV: {
         'AWS_REGION': 'us-east-1',
         'AWS_DEFAULT_REGION': 'us-east-1',

@@ -17,13 +17,22 @@
     "test:local": "node ./bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js",
     "test:dist": "node ./dist/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js"
   },
-  "devDependencies": {
+  "dependencies": {
     "commander": "^11.0.0",
     "compression": "^1.7.4",
     "dotenv": "^17.3.1",
+    "serve-handler": "^6.1.6",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/client-appconfig": "^3.0.0",
+    "@aws-sdk/util-utf8": "^3.0.0",
+    "@aws-sdk/types": "^3.0.0",
+    "@aws-sdk/util-base64": "^3.0.0"
+  },
+  "devDependencies": {
     "esbuild": "^0.27.3",
     "jest": "^30.2.0",
-    "serve-handler": "^6.1.6",
     "supertest": "^7.2.2"
   },
   "keywords": [

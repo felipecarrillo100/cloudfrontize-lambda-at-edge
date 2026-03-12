@@ -63,6 +63,11 @@ class EdgeRunner {
         });
     }
 
+    _detectHookType(code) {
+        const match = code.match(/exports\.hookType\s*=\s*['"](.+?)['"]/);
+        return match ? match[1] : null;
+    }
+
     _loadFile(filePath) {
         let code = fs.readFileSync(filePath, 'utf8');
         code = code.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
@@ -86,6 +91,8 @@ class EdgeRunner {
             }
         };
 
+        const hookType = this._detectHookType(code);
+
         const mockModule = { exports: {} };
         const sandbox = {
             module: mockModule, exports: mockModule.exports,
@@ -100,7 +107,28 @@ class EdgeRunner {
             URL, URLSearchParams, TextEncoder, TextDecoder,
             process: { env: { ...this.envVars }, nextTick: process.nextTick, version: process.version },
             require: (id) => {
-                if (AWS_RUNTIME.FORBIDDEN_MODULES.includes(id)) throw new Error(`Forbidden: ${id}`);
+                // 1. Check Global Forbidden List (Strict Bans)
+                if (AWS_RUNTIME.FORBIDDEN_MODULES.includes(id)) {
+                    throw new Error(`Forbidden: ${id} is restricted in the Lambda@Edge environment.`);
+                }
+
+                // 2. Validate against hook-specific whitelist
+                let allowed = AWS_RUNTIME.ALLOWED_GLOBAL;
+                if (hookType === 'origin-request' || hookType === 'origin-response') {
+                    allowed = AWS_RUNTIME.ALLOWED_ORIGIN;
+                } else if (hookType === 'viewer-request' || hookType === 'viewer-response') {
+                    allowed = AWS_RUNTIME.ALLOWED_VIEWER;
+                }
+
+                // Check built-in and SDK whitelists
+                const isAllowed = allowed.includes(id) || 
+                                 id.startsWith('node:') || 
+                                 (id.startsWith('@aws-sdk/client-') && (hookType?.startsWith('origin-')));
+
+                if (!id.startsWith('.') && !isAllowed) {
+                    throw new Error(`Forbidden: ${id} is not available in ${hookType || 'initialization'} context.`);
+                }
+
                 return id.startsWith('.') ? require(path.resolve(path.dirname(filePath), id)) : require(id);
             },
             __dirname: path.dirname(filePath),

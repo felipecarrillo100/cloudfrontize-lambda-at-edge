@@ -24,7 +24,7 @@ async function build() {
         banner: {
             js: '#!/usr/bin/env node', // Native injection prevents encoding errors
         },
-        external: ['fsevents'], // Exclude platform-specific optional binaries
+        external: ['fsevents', '@aws-sdk/*'], // Exclude binaries and AWS SDK (provided by host runtime)
     });
 
     // 3. Ensure executable permissions for CLI use
