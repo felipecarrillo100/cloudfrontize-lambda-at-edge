@@ -348,10 +348,13 @@ class EdgeRunner {
 
     _normalizeHeadersInternal(input) {
         const headers = {};
-        for (const [k, v] of Object.entries(input)) {
+        for (const k in input) {
             const key = k.toLowerCase();
-            const val = Array.isArray(v) ? (v[0]?.value ?? v[0]) : (v?.value ?? v);
-            headers[key] = [{ key: k, value: String(val) }];
+            const v = input[k];
+            const val = Array.isArray(v) 
+                ? (v[0]?.value ?? v[0]) 
+                : (v && typeof v === 'object' ? v.value : v);
+            headers[key] = [{ key: k, value: String(val ?? '') }];
         }
         return headers;
     }

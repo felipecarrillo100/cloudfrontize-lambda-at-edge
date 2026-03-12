@@ -12,6 +12,15 @@ const AWS_LIMITS = {
 };
 
 /**
+ * AWS CloudFront Functions (CFF) Strict Limits
+ */
+const CFF_LIMITS = {
+    MAX_CODE_SIZE_BYTES: 10 * 1024,           // 10KB
+    MAX_CPU_TIME_MS: 1,                       // 1ms (Soft limit warning)
+    MAX_TOTAL_TIME_MS: 50                     // 50ms (Hard VM limit)
+};
+
+/**
  * AWS Forbidden & Read-only Headers
  */
 const AWS_HEADERS = {
@@ -66,4 +75,10 @@ const AWS_RUNTIME = {
     ]
 };
 
-module.exports = { AWS_LIMITS, AWS_HEADERS, AWS_RUNTIME };
+const CFF_RUNTIME = {
+    // Strictly NO built-ins for CFF
+    ALLOWED_GLOBAL: [], 
+    FORBIDDEN_MODULES: ['*'] // Any require() will throw
+};
+
+module.exports = { AWS_LIMITS, AWS_HEADERS, AWS_RUNTIME, CFF_LIMITS, CFF_RUNTIME };

@@ -3,6 +3,7 @@
 const { Command } = require('commander');
 const { startServer } = require('../src/index.js');
 const { EdgeRunner } = require('../src/edgeRunner.js');
+const { CFFRunner } = require('../src/CFFRunner.js');
 const path = require('path');
 const fs = require('fs');
 
@@ -28,6 +29,7 @@ program
     .option('-L, --no-request-logging', 'mute logs')
     .option('--log <path>', 'path to log file for Lambda@Edge console output (overwrites)')
     .option('-e, --edge <path>', 'path to a Lambda@Edge module or directory to simulate')
+    .option('--cff <path>', 'path to a CloudFront Functions module or directory to simulate')
     .option('-E, --env <path>', 'path to environment file (Strict: Reserved AWS variables only)')
     .option('-b, --bake <path>', 'path to variables file for __VAR__ string replacement')
     .option('-o, --output <path>', 'output the baked .js file(s) for production deployment')
@@ -45,24 +47,35 @@ program
         const isJustBaking = options.output && !directory;
 
         let edgeRunner = null;
+        let cffRunner = null;
 
         // Ensure we have a path if edge-related flags are used
-        if (options.edge || options.bake || options.output) {
+        if (options.edge || options.bake || options.output || options.cff) {
             const edgePath = options.edge ? path.resolve(options.edge) : null;
+            const cffPath = options.cff ? path.resolve(options.cff) : null;
 
-            // Validate: Can't bake or output without a source file/directory
+            // Validate: Can't bake or output without a source file/directory (only for L@E)
             if (!edgePath && (options.bake || options.output)) {
                 console.error('🛑 Error: --bake and --output require a source --edge file or directory.');
                 process.exit(1);
             }
 
-            edgeRunner = new EdgeRunner(edgePath, {
-                debug: options.debug,
-                logPath: options.log ? path.resolve(options.log) : null,
-                envPath: options.env ? path.resolve(options.env) : null,
-                bakePath: options.bake ? path.resolve(options.bake) : null,
-                outputPath: options.output ? path.resolve(options.output) : null
-            });
+            if (edgePath) {
+                edgeRunner = new EdgeRunner(edgePath, {
+                    debug: options.debug,
+                    logPath: options.log ? path.resolve(options.log) : null,
+                    envPath: options.env ? path.resolve(options.env) : null,
+                    bakePath: options.bake ? path.resolve(options.bake) : null,
+                    outputPath: options.output ? path.resolve(options.output) : null
+                });
+            }
+
+            if (cffPath) {
+                cffRunner = new CFFRunner(cffPath, {
+                    debug: options.debug,
+                    strict: options.strict
+                });
+            }
 
             if (isJustBaking) {
                 console.log(`✅ Production-ready file(s) generated at: ${options.output}`);
@@ -75,7 +88,8 @@ program
             ...options,
             port: parseInt(port),
             directory: path.resolve(directory),
-            edgeRunner
+            edgeRunner,
+            cffRunner
         });
     });
 

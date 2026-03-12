@@ -98,6 +98,7 @@ Each exercise comes with a **Business Scenario**, **Starter Template**, and **Fu
 | `--log <path>` | Path to log file for Lambda@Edge console output (Overwrites on startup) | none |
 | `--headers <path>` | Path to JSON file with default request headers (e.g., for Geo/Auth simulation) | none |
 | `-e, --edge <path>` | Path to a Lambda@Edge module or directory to simulate | none |
+| `--cff <path>` | Path to a CloudFront Function file or directory to simulate | none |
 | **`-E, --env <path>`**  | Path to environment file (Strict: Reserved AWS variables only)                                                                                                                                                                                                                | `null`                                                                                             |
 | **`-b, --bake <path>`** | Path to variables file for `__VAR__` string replacement                                                                                                                                                                                                                       | `null`                                                                                             |
 | **`-o, --output <path>`**| Output the baked `.js` file(s) for production deployment                                                                                                                                                                                                                      | `null`                                                                                             |
@@ -123,6 +124,41 @@ Since there is no AWS CloudFront Console to configure your triggers locally, **i
 * `'viewer-request'`: Intercept **before** cache. Often used for redirects or authentication.
 * `'origin-response'`: Intercept **after** the origin responds. Often used to inject `Cache-Control` headers.
 * `'viewer-response'`: Intercept **before** sending to the viewer. Often used to inject security headers.
+
+---
+
+## ⚡ CloudFront Functions (CFF)
+
+CloudFront Functions provide a lightweight, high-performance scripting environment for high-scale transformations. `cloudfrontize` simulates the CFF environment with strict fidelity to AWS limits (1ms CPU, 10KB code size) and restricted module access (no `require`, `fs`, etc.).
+
+### Automatic Hook Detection
+When pointing `--cff` to a directory, files must follow a strict naming convention to be recognized:
+*   `viewer-request*.js`: Executes before Lambda@Edge viewer-request and origin-request.
+*   `viewer-response*.js`: Executes after Lambda@Edge viewer-response.
+
+Files within a directory are executed in **lexicographical order**.
+
+### CFF Example (`viewer-request-redirect.js`)
+
+```javascript
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+
+    // Direct response (short-circuits the pipeline)
+    if (uri === '/old-path') {
+        return {
+            statusCode: 301,
+            statusDescription: 'Moved Permanently',
+            headers: {
+                'location': { value: '/new-path' }
+            }
+        };
+    }
+
+    return request;
+}
+```
 
 ---
 

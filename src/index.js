@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const { AWS_LIMITS } = require('./constants');
 
 function startServer(options) {
-    const { edgeRunner } = options;
+    const { edgeRunner, cffRunner } = options;
 
     const compressMiddleware = compression({
         filter: (req, res) => {
@@ -44,6 +44,43 @@ function startServer(options) {
         }
 
         // === 1. REQUEST HOOKS ===
+        
+        // --- 1a. CloudFront Functions (viewer-request) ---
+        if (cffRunner) {
+            try {
+                const cffEvent = cffRunner.toCFFEvent(req, bodyBuffer, 'viewer-request');
+                const cffResult = await cffRunner.runChain('viewer-request', cffEvent);
+                const mappedResult = cffRunner.fromCFFEvent(cffResult);
+
+                if (mappedResult) {
+                    if (mappedResult._isResponse) {
+                        const status = parseInt(mappedResult.status) || 200;
+                        if (mappedResult.headers) {
+                            for (const [k, values] of Object.entries(mappedResult.headers)) {
+                                if (values && values[0]) res.setHeader(k, values[0].value);
+                            }
+                        }
+                        res.writeHead(status);
+                        res.end(mappedResult.body || '');
+                        return;
+                    }
+
+                    if (mappedResult.url) req.url = mappedResult.url;
+                    if (mappedResult.headers) {
+                        for (const [k, values] of Object.entries(mappedResult.headers)) {
+                            if (values && values[0]) {
+                                req.headers[k.toLowerCase()] = values[0].value;
+                                res.setHeader(k, values[0].value);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error(`🛑 [CFF] viewer-request error: ${err.message}`);
+            }
+        }
+
+        // --- 1b. Lambda@Edge (viewer-request, origin-request) ---
         if (edgeRunner) {
             // Body Limit Check (Fidelity)
             if (bodyBuffer && bodyBuffer.length > AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES) {
@@ -179,6 +216,37 @@ function startServer(options) {
             }
         }
 
+        // --- 2b. CloudFront Functions (viewer-response) ---
+        if (cffRunner) {
+            try {
+                // Determine current status for the CFF event
+                const urlPath = decodeURIComponent(req.url.split('?')[0]);
+                const fullPath = path.join(options.directory, urlPath);
+                let initialStatus = res.statusCode || 200;
+                if (!res.statusCode && !fs.existsSync(fullPath)) initialStatus = 404;
+
+                const cffEvent = cffRunner.toCFFEvent(req, bodyBuffer, 'viewer-response', {
+                    status: initialStatus,
+                    headers: res.getHeaders()
+                });
+
+                const cffResult = await cffRunner.runChain('viewer-response', cffEvent);
+                const mappedResult = cffRunner.fromCFFEvent(cffResult);
+
+                if (mappedResult && mappedResult.headers) {
+                    for (const [k, values] of Object.entries(mappedResult.headers)) {
+                        if (values && values[0]) res.setHeader(k, values[0].value);
+                    }
+                }
+                
+                if (mappedResult && mappedResult.status) {
+                    res.statusCode = parseInt(mappedResult.status);
+                }
+            } catch (err) {
+                console.error(`🛑 [CFF] viewer-response error: ${err.message}`);
+            }
+        }
+
         // === 3. STATIC FILE SERVING ===
         const urlPath = decodeURIComponent(req.url.split('?')[0]);
         const fullPath = path.join(options.directory, urlPath);
@@ -254,6 +322,13 @@ function startServer(options) {
                         const filename = path.basename(mods[0].file);
                         console.log(`⚡ ${hook} (${filename})`);
                     }
+                });
+            }
+            if (cffRunner) {
+                Object.entries(cffRunner.functions).forEach(([hook, fns]) => {
+                    fns.forEach(fn => {
+                        console.log(`⚡ [CFF] ${hook} (${fn.name})`);
+                    });
                 });
             }
         }
