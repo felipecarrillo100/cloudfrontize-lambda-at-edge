@@ -86,10 +86,14 @@ program
             }
         }
 
+        // 1. Resolve the path to the headers file
+        const headersPath = options.headers ? path.resolve(options.headers) : null;
+
         startServer({
             ...options,
             port: parseInt(port),
             directory: path.resolve(directory),
+            headersPath, // Pass the path to follow the established loading pattern
             edgeRunner,
             cffRunner
         });

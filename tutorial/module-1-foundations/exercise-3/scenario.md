@@ -18,6 +18,8 @@ exports.handler = async (event) => {
 
     // TODO: Detect mobile and redirect
     // const isMobile = headers['cloudfront-is-mobile-viewer'] && ...
+    // Redirect them to your mobile website, i.e 'https://m.example.com/'
+    // Pass curernt path (request.uri) and query paramters (request.querystring)
 
     return request;
 };
@@ -55,7 +57,7 @@ And start the emulator as:
 ```bash
    cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-3/index.js --headers ./headers.json
 ```
-Now, any standard browser refresh at http://localhost:3000 will behave as a mobile device.
+Now, any standard browser refresh at http://localhost:3000 will behave as a mobile device and you will be redirected to the page you set `https://m.example.com/` 
 
 ## 💡 Fidelity Tip
 In AWS, to use device-detection headers, you must first enable them in your **CloudFront Origin Request Policy**. The emulator simulates these headers being present by default to make development easier.

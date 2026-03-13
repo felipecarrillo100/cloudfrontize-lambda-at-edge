@@ -9,7 +9,20 @@ const crypto = require('crypto');
 const { AWS_LIMITS } = require('./constants');
 
 function startServer(options) {
-    const { edgeRunner, cffRunner } = options;
+    const { edgeRunner, cffRunner, headersPath } = options;
+
+    // 1. Load simulated headers from file (Simulation Truth)
+    let defaultHeaders = options.defaultHeaders || {};
+    if (headersPath && fs.existsSync(headersPath)) {
+        try {
+            const fileData = JSON.parse(fs.readFileSync(headersPath, 'utf8'));
+            // Merge file headers with any headers passed directly via options (for tests)
+            defaultHeaders = { ...fileData, ...defaultHeaders };
+            if (options.debug) console.log(`[CloudFrontize] Loaded headers from: ${headersPath}`);
+        } catch (err) {
+            console.error(`🛑 Error parsing headers file: ${err.message}`);
+        }
+    }
 
     const compressMiddleware = compression({
         filter: (req, res) => {
@@ -23,8 +36,8 @@ function startServer(options) {
         const requestID = crypto.randomBytes(4).toString('hex');
 
         // === 0. DEFAULT HEADER INJECTION ===
-        if (options.defaultHeaders) {
-            for (const [key, value] of Object.entries(options.defaultHeaders)) {
+        if (defaultHeaders) {
+            for (const [key, value] of Object.entries(defaultHeaders)) {
                 const lowerKey = key.toLowerCase();
                 if (req.headers[lowerKey] === undefined) {
                     req.headers[lowerKey] = value;
@@ -44,7 +57,7 @@ function startServer(options) {
         }
 
         // === 1. REQUEST HOOKS ===
-        
+
         // --- 1a. CloudFront Functions (viewer-request) ---
         if (cffRunner) {
             try {
@@ -153,7 +166,7 @@ function startServer(options) {
                                 res.setHeader('Content-Encoding', 'gzip');
                             }
                         } else {
-                            // Target does not exist. 
+                            // Target does not exist.
                             if (options.strict) {
                                 // In strict mode, we apply the rewrite anyway. serve-handler will then 404.
                                 // This matches AWS behavior where a missing rewrite target results in a 404.
@@ -255,7 +268,7 @@ function startServer(options) {
                         }
                     }
                 }
-                
+
                 if (mappedResult && mappedResult.status) {
                     res.statusCode = parseInt(mappedResult.status);
                 }
