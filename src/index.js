@@ -57,7 +57,10 @@ function startServer(options) {
                         const status = parseInt(mappedResult.status) || 200;
                         if (mappedResult.headers) {
                             for (const [k, values] of Object.entries(mappedResult.headers)) {
-                                if (values && values[0]) res.setHeader(k, values[0].value);
+                                if (values && values.length > 0) {
+                                    const headerVals = values.map(v => v.value);
+                                    res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
+                                }
                             }
                         }
                         res.writeHead(status);
@@ -68,9 +71,11 @@ function startServer(options) {
                     if (mappedResult.url) req.url = mappedResult.url;
                     if (mappedResult.headers) {
                         for (const [k, values] of Object.entries(mappedResult.headers)) {
-                            if (values && values[0]) {
+                            if (values && values.length > 0) {
+                                // Sync first value to req.headers for downstream L@E access
                                 req.headers[k.toLowerCase()] = values[0].value;
-                                res.setHeader(k, values[0].value);
+                                const headerVals = values.map(v => v.value);
+                                res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
                             }
                         }
                     }
@@ -123,7 +128,10 @@ function startServer(options) {
                         const status = parseInt(hookResult.status) || 200;
                         if (hookResult.headers) {
                             for (const [k, values] of Object.entries(hookResult.headers)) {
-                                if (values && values[0]) res.setHeader(k, values[0].value);
+                                if (values && values.length > 0) {
+                                    const headerVals = values.map(v => v.value);
+                                    res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
+                                }
                             }
                         }
                         res.writeHead(status);
@@ -162,7 +170,10 @@ function startServer(options) {
                     // Sync custom headers (Mobile/Geo/Security)
                     if (hookResult.headers) {
                         for (const [k, values] of Object.entries(hookResult.headers)) {
-                            if (values && values[0]) res.setHeader(k, values[0].value);
+                            if (values && values.length > 0) {
+                                const headerVals = values.map(v => v.value);
+                                res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
+                            }
                         }
                     }
                 }
@@ -202,7 +213,10 @@ function startServer(options) {
 
                 if (hookResponse && hookResponse.headers) {
                     for (const [k, values] of Object.entries(hookResponse.headers)) {
-                        if (values && values[0]) res.setHeader(k, values[0].value);
+                        if (values && values.length > 0) {
+                            const headerVals = values.map(v => v.value);
+                            res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
+                        }
                     }
                 }
             } catch (err) {
@@ -235,7 +249,10 @@ function startServer(options) {
 
                 if (mappedResult && mappedResult.headers) {
                     for (const [k, values] of Object.entries(mappedResult.headers)) {
-                        if (values && values[0]) res.setHeader(k, values[0].value);
+                        if (values && values.length > 0) {
+                            const headerVals = values.map(v => v.value);
+                            res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
+                        }
                     }
                 }
                 

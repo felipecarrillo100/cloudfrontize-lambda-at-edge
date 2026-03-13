@@ -18,17 +18,18 @@
     "test:dist": "node ./dist/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js"
   },
   "dependencies": {
+    "@aws-sdk/client-appconfig": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/types": "^3.0.0",
+    "@aws-sdk/util-base64": "^3.0.0",
+    "@aws-sdk/util-utf8": "^3.0.0",
+    "cloudfrontize-lambda-at-edge": "^1.0.5",
     "commander": "^11.0.0",
     "compression": "^1.7.4",
     "dotenv": "^17.3.1",
-    "serve-handler": "^6.1.6",
-    "@aws-sdk/client-s3": "^3.0.0",
-    "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/client-secrets-manager": "^3.0.0",
-    "@aws-sdk/client-appconfig": "^3.0.0",
-    "@aws-sdk/util-utf8": "^3.0.0",
-    "@aws-sdk/types": "^3.0.0",
-    "@aws-sdk/util-base64": "^3.0.0"
+    "serve-handler": "^6.1.6"
   },
   "devDependencies": {
     "esbuild": "^0.27.3",

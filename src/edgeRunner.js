@@ -10,7 +10,7 @@ const { AsyncLocalStorage } = require('async_hooks');
 
 class EdgeRunner {
     constructor(edgePath, options = {}) {
-        this.edgePath = path.resolve(edgePath);
+        this.edgePath = edgePath ? path.resolve(edgePath) : null;
         this.envPath = options.envPath;
         this.bakePath = options.bakePath;
         this.outputPath = options.outputPath;
@@ -349,20 +349,86 @@ class EdgeRunner {
             method: req.method || 'GET',
             uri: urlObj.pathname,
             querystring: normalizedQs,
-            headers: this._normalizeHeadersInternal(req.headers || {}),
+            headers: this._parseIncomingHeaders(req),
             body
         };
+    }
+
+    _parseIncomingHeaders(req) {
+        const headers = {};
+        
+        // 1. Parse rawHeaders to preserve exact original casing and arrays
+        if (req.rawHeaders) {
+            for (let i = 0; i < req.rawHeaders.length; i += 2) {
+                const originalKey = req.rawHeaders[i];
+                const value = req.rawHeaders[i + 1];
+                const lowerKey = originalKey.toLowerCase();
+                
+                if (!headers[lowerKey]) {
+                    headers[lowerKey] = [];
+                }
+                headers[lowerKey].push({ key: originalKey, value: String(value) });
+            }
+        } else {
+            // Fallback for mock requests in tests that don't pass rawHeaders
+            for (const [k, v] of Object.entries(req.headers || {})) {
+                const lowerKey = k.toLowerCase();
+                if (Array.isArray(v)) {
+                    // Could be pre-formed AWS arrays [{ key, value }] from unit tests, or plain strings
+                    headers[lowerKey] = v.map(val => {
+                        if (val && typeof val === 'object' && 'value' in val) {
+                            // Already a proper AWS header object
+                            return { key: val.key || k, value: String(val.value) };
+                        }
+                        return { key: k, value: String(val) };
+                    });
+                } else {
+                    headers[lowerKey] = [{ key: k, value: String(v) }];
+                }
+            }
+        }
+
+        // 2. Reconcile with req.headers to catch any internal mutations 
+        // (like --default-headers or CFF mutations that happen before EdgeRunner)
+        for (const [lowerKey, v] of Object.entries(req.headers || {})) {
+            if (!headers[lowerKey]) {
+                if (Array.isArray(v)) {
+                    headers[lowerKey] = v.map(val => {
+                        if (val && typeof val === 'object' && 'value' in val) {
+                            return { key: val.key || lowerKey, value: String(val.value) };
+                        }
+                        return { key: lowerKey, value: String(val) };
+                    });
+                } else {
+                    headers[lowerKey] = [{ key: lowerKey, value: String(v) }];
+                }
+            }
+        }
+
+        return headers;
     }
 
     _normalizeHeadersInternal(input) {
         const headers = {};
         for (const k in input) {
-            const key = k.toLowerCase();
-            const v = input[k];
-            const val = Array.isArray(v) 
-                ? (v[0]?.value ?? v[0]) 
-                : (v && typeof v === 'object' ? v.value : v);
-            headers[key] = [{ key: k, value: String(val ?? '') }];
+            const lowerKey = k.toLowerCase();
+            const valueOpt = input[k];
+            
+            // AWS requires an array of objects: { key: 'Original-Case', value: 'val' }
+            if (Array.isArray(valueOpt)) {
+                headers[lowerKey] = valueOpt.map(v => {
+                    // Case 1: already a proper AWS header object { key, value }
+                    if (v && typeof v === 'object' && 'value' in v) {
+                        return { key: v.key || k, value: String(v.value ?? '') };
+                    }
+                    // Case 2: plain string in array
+                    return { key: k, value: String(v ?? '') };
+                });
+            } else if (typeof valueOpt === 'object' && valueOpt !== null) {
+                headers[lowerKey] = [{ key: valueOpt.key || k, value: String(valueOpt.value ?? '') }];
+            } else {
+                headers[lowerKey] = [{ key: k, value: String(valueOpt ?? '') }];
+            }
         }
         return headers;
     }
@@ -401,8 +467,13 @@ class EdgeRunner {
 
         if (obj.headers) {
             Object.keys(obj.headers).forEach(k => {
-                const v = obj.headers[k]?.[0]?.value;
-                if (v !== undefined) out[k.toLowerCase()] = v;
+                const headersArray = obj.headers[k];
+                if (Array.isArray(headersArray) && headersArray.length > 0) {
+                    // CFF uses a flat key/value object, but Edge uses arrays. This flattening is mostly for internal proxy logic.
+                    // We only take the first parameter for flatten as its mostly used for URLs matching.
+                    const v = headersArray[0]?.value;
+                    if (v !== undefined) out[k.toLowerCase()] = v;
+                }
             });
         }
         if (out.uri) {

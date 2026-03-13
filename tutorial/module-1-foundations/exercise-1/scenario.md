@@ -30,9 +30,16 @@ exports.handler = async (event) => {
 2. Implement the missing headers in the `TODO` sections.
 3. Run the emulator (serving the `www` sample and attaching your hook):
    ```bash
-   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-1/index.js
+   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-1/index.js --headers headers.json
    ```
    *Note: `www` is the positional argument telling the emulator which folder to serve as your website.*
+   *Note: `--headers` the emulator allows you to inject headers using a JSON file.*
+```json
+{
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+  "X-Content-Type-Options": "nosniff"
+}
+```
 4. Open `http://localhost:3000` in your browser.
 5. Inspect the Network Tab (F12) and verify the headers are present in the response.
 

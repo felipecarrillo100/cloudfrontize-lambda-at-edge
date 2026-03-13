@@ -190,9 +190,31 @@ class CFFRunner {
             }
         }
 
-        // Headers mapping (CFF uses flat object with .value)
-        for (const [key, value] of Object.entries(req.headers)) {
-            event.request.headers[key.toLowerCase()] = { value: String(value) };
+        // Headers mapping (CFF uses flat { value } per header-name key, multi-value uses multiValue array)
+        if (req.rawHeaders) {
+            // Parse rawHeaders to preserve casing and collect all values per header
+            const rawMap = {}; // lowerKey -> [{ key: originalCase, value }]
+            for (let i = 0; i < req.rawHeaders.length; i += 2) {
+                const originalKey = req.rawHeaders[i];
+                const lowerKey = originalKey.toLowerCase();
+                if (!rawMap[lowerKey]) rawMap[lowerKey] = [];
+                rawMap[lowerKey].push({ key: originalKey, value: String(req.rawHeaders[i + 1]) });
+            }
+            for (const [lowerKey, entries] of Object.entries(rawMap)) {
+                if (entries.length === 1) {
+                    event.request.headers[lowerKey] = { value: entries[0].value };
+                } else {
+                    event.request.headers[lowerKey] = {
+                        value: entries[0].value,
+                        multiValue: entries.map(e => ({ value: e.value }))
+                    };
+                }
+            }
+        } else {
+            // Fallback for mock requests in tests
+            for (const [key, value] of Object.entries(req.headers || {})) {
+                event.request.headers[key.toLowerCase()] = { value: String(value) };
+            }
         }
 
         // Querystring mapping
