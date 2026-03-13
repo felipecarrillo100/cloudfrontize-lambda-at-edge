@@ -8,6 +8,8 @@ Inject the following security headers into every response leaving CloudFront:
 1. `Strict-Transport-Security`: `max-age=63072000; includeSubDomains; preload`
 2. `X-Content-Type-Options`: `nosniff`
 
+You can setup the headers programmatically inside a `viewer-response` Lambda@Edge function.
+
 ## 📝 Starter Code Template
 ```javascript
 'use strict';
@@ -28,18 +30,13 @@ exports.handler = async (event) => {
 ## 🛠️ Instructions
 1. Open `tutorial/module-1-foundations/exercise-1/index.js`.
 2. Implement the missing headers in the `TODO` sections.
-3. Run the emulator (serving the `www` sample and attaching your hook):
+3. Run the emulator (serving the `www` sample folder and attaching your hook):
    ```bash
-   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-1/index.js --headers headers.json
+   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-1/index.js
    ```
-   *Note: `www` is the positional argument telling the emulator which folder to serve as your website.*
-   *Note: `--headers` the emulator allows you to inject headers using a JSON file.*
-```json
-{
-  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-  "X-Content-Type-Options": "nosniff"
-}
-```
+   *Note: `www` is the argument telling the emulator which folder to serve as your website.*
+
+
 4. Open `http://localhost:3000` in your browser.
 5. Inspect the Network Tab (F12) and verify the headers are present in the response.
 

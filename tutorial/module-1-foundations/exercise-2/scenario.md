@@ -25,14 +25,17 @@ exports.handler = async (event) => {
     return request;
 };
 ```
+*HINT: `URLSearchParams` Already has a alphabetical sort method which simplifies the task.*
 
 ## �🛠️ Instructions
 1. Open `tutorial/module-1-foundations/exercise-2/index.js`.
 2. Use `URLSearchParams` to sort the keys and update `request.querystring`.
 3. Run the emulator:
    ```bash
-   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-2/index.js
+   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-2/index.js --debug
    ```
+*NOTE: `--debug` flag allows you to observe the URI rewrites in real-time to verify your logic.*
+
 4. Test with `http://localhost:3000/?z=last&a=first`.
 5. Check the emulator console to see the normalized URL.
 

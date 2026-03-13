@@ -7,11 +7,12 @@ const { CFFRunner } = require('../src/CFFRunner.js');
 const path = require('path');
 
 const program = new Command();
+const version = typeof __PKG_VERSION__ !== 'undefined' ? __PKG_VERSION__ : '0.0.0-dev';
 
 program
     .name('cloudfrontize')
     .description('Static server with CloudFront Fidelity: Environments & Variable Baking')
-    .version(__PKG_VERSION__)
+    .version(version)
     .argument('[directory]', 'directory to serve')
     .option('-p, --port <number>', 'port to listen on', '3000')
     .option('-l, --listen <uri>', 'listen URI', '3000')
