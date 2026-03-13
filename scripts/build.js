@@ -2,6 +2,9 @@ const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
 
+// Read version from package.json
+const pkg = require('../package.json');
+
 async function build() {
     const dist = path.join(__dirname, '../dist');
 
@@ -25,6 +28,9 @@ async function build() {
             js: '#!/usr/bin/env node', // Native injection prevents encoding errors
         },
         external: ['fsevents', '@aws-sdk/*'], // Exclude binaries and AWS SDK (provided by host runtime)
+        define: {
+            __PKG_VERSION__: JSON.stringify(pkg.version)  // e.g. "1.1.0"
+        }
     });
 
     // 3. Ensure executable permissions for CLI use

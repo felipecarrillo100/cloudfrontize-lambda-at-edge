@@ -5,18 +5,13 @@ const { startServer } = require('../src/index.js');
 const { EdgeRunner } = require('../src/edgeRunner.js');
 const { CFFRunner } = require('../src/CFFRunner.js');
 const path = require('path');
-const fs = require('fs');
-
-// 1️⃣ Resolve the path to package.json relative to this file
-const pkgPath = path.join(__dirname, '../package.json');
-const pkg = require(pkgPath);
 
 const program = new Command();
 
 program
     .name('cloudfrontize')
     .description('Static server with CloudFront Fidelity: Environments & Variable Baking')
-    .version(pkg.version)
+    .version(__PKG_VERSION__)
     .argument('[directory]', 'directory to serve')
     .option('-p, --port <number>', 'port to listen on', '3000')
     .option('-l, --listen <uri>', 'listen URI', '3000')

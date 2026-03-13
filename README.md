@@ -127,7 +127,7 @@ Since there is no AWS CloudFront Console to configure your triggers locally, **i
 
 ---
 
-## ⚡ CloudFront Functions (CFF)
+## ⚡ CloudFront Functions (CFF) `New!`
 
 CloudFront Functions provide a lightweight, high-performance scripting environment for high-scale transformations. `cloudfrontize` simulates the CFF environment with strict fidelity to AWS limits (1ms CPU, 10KB code size) and restricted module access (no `require`, `fs`, etc.).
 
@@ -273,6 +273,6 @@ Every bit of support—whether it's sponsoring on GitHub, a coffee, a star, or a
 ### 🏢 Corporate & Business Use
 Does your team use CloudFrontize to speed up production workflows?
 Please support the project by selecting the **Corporate Tier** on [GitHub Sponsors](https://github.com/sponsors/felipecarrillo100).
-* **Standard Business License:** $25/month per team.
+* **Standard Business License:** $25/month per team (for up to 5 users).
 * **Enterprise:** Contact me for a one-time perpetual site license.
 

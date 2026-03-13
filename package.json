@@ -11,7 +11,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "node scripts/build.js",
+    "clean": "node -e \"require('fs').rmSync('dist', {recursive:true, force:true})\"",
+    "build": "npm run clean && node scripts/build.js",
     "prepublishOnly": "npm run build",
     "test": "jest --forceExit",
     "test:local": "node ./bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js",
@@ -25,7 +26,6 @@
     "@aws-sdk/types": "^3.0.0",
     "@aws-sdk/util-base64": "^3.0.0",
     "@aws-sdk/util-utf8": "^3.0.0",
-    "cloudfrontize-lambda-at-edge": "^1.0.5",
     "commander": "^11.0.0",
     "compression": "^1.7.4",
     "dotenv": "^17.3.1",
@@ -47,7 +47,7 @@
     "local-development"
   ],
   "author": "Felipe Carrillo",
-  "license": "SEE LICENSE IN LICENSE FILE",
+  "license": "SEE LICENSE FILE",
   "repository": {
     "type": "git",
     "url": "https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge.git"
