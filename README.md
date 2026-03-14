@@ -1,6 +1,33 @@
 # cloudfrontize-lambda-at-edge
 [![Sponsor](https://img.shields.io/badge/Sponsor-❤️-ff69b4?style=for-the-badge&logo=github)](https://github.com/sponsors/felipecarrillo100)
 
+
+
+> **⚠️ DEPRECATION NOTICE:**
+> This package (`cloudfrontize-lambda-at-edge`) has been officially deprecated in favor of the new, **[cloudfrontize](https://www.npmjs.com/package/cloudfrontize)** package. The scope of this project has grown beyond just Lambda@Edge to now include **CloudFront Functions** and more features to come. By consolidating into a single package, we can ensure faster updates, better maintenance, and a more robust experience for all CloudFront customization needs. Please migrate to the new package to receive the latest features and security patches.
+
+---
+
+### Quick Migration Steps
+
+If you used `cloudfrontize-lambda-at-edge` migration is easy:
+
+1. **Uninstall the old package (this package):**
+```bash
+npm uninstall cloudfrontize-lambda-at-edge
+```
+
+
+2. **Install the new package:**
+```bash
+npm install cloudfrontize
+```
+
+*The rest works just as before!*
+
+---
+
+
 ### 📣 Stop bowing to the deployment bar! 
 
 **Rule the Edge** and become the Hero of the Cloud. **Escape the "Deploy-and-Pray" cycle.** We’ve all been there: you tweak one security header, hit "Deploy," and... **you wait.** For 15 agonizing minutes, you watch a spinning "In Progress" status as AWS propagates your code globally. If there’s a tiny typo? You won't know until you hit a **502 Bad Gateway** and go hunting through CloudWatch logs buried in a random region.
